@@ -91,6 +91,21 @@ def main():
     for f in ('ProbablyStolenCoop.dll', 'Google.Protobuf.dll'):
         shutil.copy2(os.path.join(GAME, 'BepInEx', 'plugins', f), plugins)
 
+    # Unity 基础库(必需! 缺它 BepInEx 首次启动会联网下载, 国内网络极易失败导致模组加载不了)
+    print('[3.5/5] 复制 Unity 基础库...')
+    ul_src = os.path.join(GAME, 'BepInEx', 'unity-libs')
+    ul_dst = os.path.join(be, 'unity-libs')
+    os.makedirs(ul_dst, exist_ok=True)
+    n_ul = 0
+    for f in os.listdir(ul_src):
+        sp = os.path.join(ul_src, f)
+        if os.path.isfile(sp) and f.lower().endswith('.zip'):
+            shutil.copy2(sp, ul_dst)
+            n_ul += 1
+            print('      + %s (%.2f MB)' % (f, os.path.getsize(sp) / 1024 / 1024))
+    if n_ul == 0:
+        print('      !! 警告: 未在 BepInEx/unity-libs 找到 zip 文件')
+
     print('[4/5] 写入预配置(服务器 %s:%s wss=%s)...' % (HOST, PORT, WSS))
     cfg_dir = os.path.join(be, 'config')
     os.makedirs(cfg_dir)
