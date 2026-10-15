@@ -44,6 +44,7 @@ enum MsgType {
   SAVE_META = 31;          // 房主 → 服务端 → 队友:存档元信息(槽位/总长/校验)
   SAVE_CHUNK = 32;         // 房主 → 服务端 → 队友:存档分片
   INV_SYNC = 33;           // 广播:库存布局同步(拖放后整份对齐)
+  ITEM_MOVE = 34;          // 广播:单个物品位置变化(拖放/移动;非破坏性)
 }
 
 // 信封:所有消息的统一外层(便于扩展与版本协商)
@@ -302,4 +303,15 @@ message SaveChunk {
 message InvSync {
   int32 player_id = 1;
   repeated string items_json = 2;   // 每个物品一个游戏原生 JSON(PlayerStore.EncodeItem)
+}
+
+// ---- 单个物品位置变化(非破坏性:只动这一件) ----
+message ItemMove {
+  int32 player_id = 1;
+  int32 unique_id = 2;     // 物品 uniqueId(两端载入同一份档 → 一致)
+  string identifier = 3;   // 兜底匹配(uniqueId 对不上时)
+  int32 min_x = 4;         // 网格坐标(GridShape.minX)
+  int32 min_y = 5;         // GridShape.minY
+  int32 orientation = 6;   // 朝向
+  bool flipped = 7;        // 是否翻转
 }
