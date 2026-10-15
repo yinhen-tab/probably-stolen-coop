@@ -72,6 +72,7 @@ public static class CoopUI
         {
             try
             {
+                CoopClient.PumpMainThread();   // 关键:主菜单阶段也要消化网络线程入队的动作(如收到房主存档)
                 ClickFx.Tick();
                 Tick();
                 CoopClient.AutoOpenLoadUi();   // 测试:进房后自动打开存档界面
