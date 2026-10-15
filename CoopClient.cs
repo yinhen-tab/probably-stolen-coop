@@ -578,6 +578,9 @@ public static class CoopClient
             // ---- 物品位置(只同步被移动的那一件) ----
             ItemMoveSync.TickCapture();
 
+            // ---- 容器窗口位置(队友拖动容器窗口) ----
+            ObjectUseSync.TickWindow();
+
             // ---- 队友物件高亮圈淡出 ----
             ObjectUseSync.Tick();
 
