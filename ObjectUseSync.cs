@@ -72,7 +72,18 @@ public static class ObjectUseSync
             if (msg.Kind == "container_open" || msg.Kind == "container_close")
             {
                 CoopLog.Detail($"[Coop] 收到容器事件: {(msg.Kind == "container_open" ? "打开" : "关闭")} [{msg.ItemId}]");
-                ApplyRemoteContainer(msg.ItemId, msg.Kind == "container_open");
+                ApplyRemoteContainer(msg, msg.Kind == "container_open");
+                return;
+            }
+            if (msg.Kind == "container_move")
+            {
+                // 队友拖动了容器窗口 → 本地把同一个窗口挪过去
+                var w = FindWindowByTitle(_remoteOpenTitle);
+                if (w != null)
+                {
+                    SetWindowPos(w, msg.Wx, msg.Wy);
+                    CoopLog.Detail($"[Coop] 已同步容器窗口位置: ({msg.Wx:0},{msg.Wy:0})");
+                }
                 return;
             }
 
@@ -92,6 +103,76 @@ public static class ObjectUseSync
 
     private static string _openItemId = "";      // 本地当前打开的容器物品(用于上报关闭)
     private static string _openItemTitle = "";
+    private static PixelWindow _openWindow;      // 本地当前打开的容器窗口(用于同步位置)
+    private static float _lastWinX, _lastWinY, _winCheckedAt;
+
+    /// <summary>按标题找当前显示的窗口(容器内容窗的标题 = 物品显示名)</summary>
+    static PixelWindow FindWindowByTitle(string title)
+    {
+        if (string.IsNullOrEmpty(title)) return null;
+        try
+        {
+            var wins = Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<PixelWindow>());
+            if (wins == null) return null;
+            for (int i = 0; i < wins.Length; i++)
+            {
+                var w = wins[i]?.TryCast<PixelWindow>();
+                if (w == null) continue;
+                string t = "";
+                try { t = (w.titleString ?? "").Trim(); } catch { }
+                if (!string.IsNullOrEmpty(t) && t == title) return w;
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    static Vector2 WindowPos(PixelWindow w)
+    {
+        try
+        {
+            var rt = w != null ? w.rectTransform : null;
+            if (rt != null) return rt.anchoredPosition;
+        }
+        catch { }
+        return Vector2.zero;
+    }
+
+    static void SetWindowPos(PixelWindow w, float x, float y)
+    {
+        try
+        {
+            var rt = w != null ? w.rectTransform : null;
+            if (rt != null) rt.anchoredPosition = new Vector2(x, y);
+        }
+        catch { }
+    }
+
+    /// <summary>心跳:本地容器窗口被拖动 → 上报位置(1 秒最多检查一次)</summary>
+    public static void TickWindow()
+    {
+        try
+        {
+            if (ApplyingContainer) return;
+            if (_openWindow == null) return;
+            if (Time.time - _winCheckedAt < 0.5f) return;
+            _winCheckedAt = Time.time;
+            var p = WindowPos(_openWindow);
+            if (Mathf.Abs(p.x - _lastWinX) < 1f && Mathf.Abs(p.y - _lastWinY) < 1f) return;
+            _lastWinX = p.x; _lastWinY = p.y;
+            if (CoopClient.Net == null || !CoopClient.Handshaked || string.IsNullOrEmpty(CoopClient.RoomCode)) return;
+            CoopClient.Net.Send(MsgType.ObjectUse, new Coop.ObjectUse
+            {
+                PlayerId = CoopClient.PlayerId,
+                Kind = "container_move",
+                ItemId = _openItemId,
+                Wx = p.x,
+                Wy = p.y,
+            });
+            CoopLog.Detail($"[Coop] 本地上报容器窗口位置: ({p.x:0},{p.y:0})");
+        }
+        catch { }
+    }
 
     /// <summary>本地打开/关闭了某个物品的容器 → 上报</summary>
     public static void ReportContainer(bool open, string itemId, string title)
@@ -102,17 +183,27 @@ public static class ObjectUseSync
             if (CoopClient.Net == null || !CoopClient.Handshaked) return;
             if (string.IsNullOrEmpty(CoopClient.RoomCode)) return;
             if (string.IsNullOrEmpty(itemId)) return;
-            if (open) { _openItemId = itemId; _openItemTitle = title ?? ""; }
+            if (open)
+            {
+                _openItemId = itemId;
+                _openItemTitle = title ?? "";
+                _openWindow = FindWindowByTitle(_openItemTitle);   // 窗口已由双击逻辑打开
+                var wp = WindowPos(_openWindow);
+                _lastWinX = wp.x; _lastWinY = wp.y;
+            }
             else if (itemId != _openItemId) return;
-            else { _openItemId = ""; _openItemTitle = ""; }
+            else { _openItemId = ""; _openItemTitle = ""; _openWindow = null; }
 
             CoopClient.Net.Send(MsgType.ObjectUse, new Coop.ObjectUse
             {
                 PlayerId = CoopClient.PlayerId,
                 Kind = open ? "container_open" : "container_close",
                 ItemId = itemId,
+                Wx = open ? _lastWinX : 0f,
+                Wy = open ? _lastWinY : 0f,
             });
-            CoopLog.Info($"[Coop] 本地{(open ? "打开" : "关闭")}容器: {title} ({itemId})");
+            CoopLog.Info($"[Coop] 本地{(open ? "打开" : "关闭")}容器: {title} ({itemId})"
+                         + (open ? $" 窗口({_lastWinX:0},{_lastWinY:0})" : ""));
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 容器上报异常: {e.Message}"); }
     }
@@ -129,7 +220,7 @@ public static class ObjectUseSync
             if (string.IsNullOrEmpty(title) || title != _openItemTitle) return;
             string id = _openItemId;
             string t = _openItemTitle;
-            _openItemId = ""; _openItemTitle = "";
+            _openItemId = ""; _openItemTitle = ""; _openWindow = null;
             ReportContainerCloseOnly(id, t);
         }
         catch { }
@@ -152,9 +243,13 @@ public static class ObjectUseSync
         catch { }
     }
 
+    /// <summary>队友打开的容器窗口在本端的标题(用于后续位置同步)</summary>
+    private static string _remoteOpenTitle = "";
+
     /// <summary>接收方:打开/关闭本地同 ID 物品的容器(内容由本端自己那份物品提供,天然一致)</summary>
-    static void ApplyRemoteContainer(string itemId, bool open)
+    static void ApplyRemoteContainer(Coop.ObjectUse msg, bool open)
     {
+        string itemId = msg.ItemId;
         if (string.IsNullOrEmpty(itemId)) return;
         var ps = PlayerStore.Instance;
         if (ps == null) return;
@@ -199,7 +294,14 @@ public static class ObjectUseSync
                 if (hs != null && hs.Length > 0)
                 {
                     hs[0].OpenContentAction(item, Vector2.zero);
-                    CoopLog.Info($"[Coop] 已打开队友的容器: {title}");
+                    _remoteOpenTitle = title;      // 记住标题,后续位置同步用
+                    // 应用队友那边的窗口位置(否则本端会开在默认位置)
+                    if (msg.Wx != 0f || msg.Wy != 0f)
+                    {
+                        var w = FindWindowByTitle(title);
+                        SetWindowPos(w, msg.Wx, msg.Wy);
+                    }
+                    CoopLog.Info($"[Coop] 已打开队友的容器: {title} 窗口({msg.Wx:0},{msg.Wy:0})");
                 }
                 else CoopLog.Warn("[Coop] 未找到容器打开处理器,无法镜像容器");
             }
