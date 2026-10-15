@@ -38,11 +38,7 @@ public static class ItemGrant
                     // 游戏原生"物品已加入主库存区"处理:刷新玩家物品索引/UI
                     try { ps.AddedItemToMainInvArea(item); } catch { }
                 }
-                if (!_deepDiagDone && acc && ps != null)
-                {
-                    _deepDiagDone = true;
-                    DeepDiag(id, item, inv, ps);
-                }
+                // (诊断日志已关闭:物品图关系此前已确认正常)
                 if (!acc) break;
                 any = true;
             }
@@ -67,6 +63,45 @@ public static class ItemGrant
 
     /// <summary>兼容旧签名</summary>
     public static bool TryGrant(string id, int count) => TryGrant(id, count, out _);
+
+    /// <summary>本会话是否补发过该 id(数量对齐时只扣"联机期间新增"的物品,避免误删玩家自有库存)</summary>
+    public static bool WasGrantedThisSession(string id)
+    {
+        return !string.IsNullOrEmpty(id) && _grantedIds.Contains(id);
+    }
+
+    /// <summary>移除本地 count 个 id 物品(数量对齐用;走游戏原生 Expel)</summary>
+    public static bool TryRemove(string id, int count)
+    {
+        if (string.IsNullOrEmpty(id) || count <= 0) return false;
+        try
+        {
+            var inv = FindPlayerInventory();
+            var ps = PlayerStore.Instance;
+            if (inv == null || ps == null) return false;
+            var all = ps.FindAllItem(true);
+            if (all == null) return false;
+
+            int done = 0;
+            for (int i = all.Count - 1; i >= 0 && done < count; i--)
+            {
+                var it = all[i];
+                if (it == null || it.identifier != id) continue;
+                bool ok = false;
+                try { ok = inv.Expel(it); }
+                catch (Exception e2) { Plugin.Log.LogWarning($"[Coop] 移除物品异常 {id}: {e2.Message}"); break; }
+                if (ok) done++;
+            }
+            if (done > 0)
+            {
+                try { ps.OnWeightedAreaChanged(); } catch { }
+                try { ps.OnMainInvAreaChange(); } catch { }
+                Plugin.Log.LogInfo($"[Coop] 已扣除本地物品 {id} × {done}(队友端已消耗)");
+            }
+            return done > 0;
+        }
+        catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 移除物品失败 {id}: {e.Message}"); return false; }
+    }
 
     static bool _deepDiagDone;
 
