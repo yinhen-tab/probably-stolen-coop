@@ -118,8 +118,22 @@ def main():
     shutil.copytree(os.path.join(GAME, 'BepInEx', 'core'), os.path.join(be, 'core'))
     plugins = os.path.join(be, 'plugins')
     os.makedirs(plugins)
+    # 插件 DLL 一律取"编译产物"(bin/Release),不取游戏目录 ——
+    # 否则一旦游戏里被旧包覆盖过,打出来的包就是旧 DLL(踩过:朋友拿到旧版)
+    built = os.path.normpath(os.path.join(HERE, '..', 'bin', 'Release', 'net6.0'))
     for f in ('ProbablyStolenCoop.dll', 'Google.Protobuf.dll'):
-        shutil.copy2(os.path.join(GAME, 'BepInEx', 'plugins', f), plugins)
+        src = os.path.join(built, f)
+        if not os.path.isfile(src):
+            src = os.path.join(GAME, 'BepInEx', 'plugins', f)
+            print('      (警告: %s 不在编译产物里,回退到游戏目录)' % f)
+        shutil.copy2(src, plugins)
+    try:
+        _dll = os.path.join(plugins, 'ProbablyStolenCoop.dll')
+        import hashlib as _h
+        print('      插件 DLL: %d 字节 md5=%s' % (
+            os.path.getsize(_dll), _h.md5(open(_dll, 'rb').read()).hexdigest()[:12]))
+    except Exception:
+        pass
 
     # Unity 基础库(必需! 缺它 BepInEx 首次启动会联网下载, 国内网络极易失败导致模组加载不了)
     print('[3.5/5] 复制 Unity 基础库...')
