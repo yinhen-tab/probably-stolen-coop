@@ -33,8 +33,56 @@ MAX_FRAME = 1 << 20          # 1MB 帧上限,防恶意长度
 TURNS_PER_DAY = 50           # 20min/回合 × 50 = 10h/天(与游戏一致)
 ECHO = os.environ.get('COOP_ECHO', '') == '1'   # 单机自测:把自己的操作可见性消息也发回给自己
 
-def log(msg: str) -> None:
-    print('[%s] %s' % (time.strftime('%H:%M:%S'), msg), flush=True)
+# ---- 日志:等级过滤 + 可选文件轮转 ----
+# COOP_LOG_LEVEL: quiet=只留生命周期  normal=再含房间/玩家事件(默认)  debug=再含逐条转发流水
+_LOG_LEVELS = {'quiet': 0, 'normal': 1, 'debug': 2}
+LOG_LEVEL = os.environ.get('COOP_LOG_LEVEL', 'normal').strip().lower()
+if LOG_LEVEL not in _LOG_LEVELS:
+    LOG_LEVEL = 'normal'
+LOG_FILE = os.environ.get('COOP_LOG_FILE', '').strip()          # 空=只输出到 stdout(容器场景推荐)
+LOG_MAX_BYTES = int(os.environ.get('COOP_LOG_MAX_MB', '5')) * 1024 * 1024
+LOG_BACKUPS = int(os.environ.get('COOP_LOG_BACKUPS', '3'))
+_log_fp = None
+
+
+def _log_fp_open():
+    global _log_fp
+    try:
+        if _log_fp is None:
+            _log_fp = open(LOG_FILE, 'a', encoding='utf-8')
+        if _log_fp.tell() >= LOG_MAX_BYTES:
+            _log_fp.close()
+            for i in range(LOG_BACKUPS - 1, 0, -1):
+                src, dst = '%s.%d' % (LOG_FILE, i), '%s.%d' % (LOG_FILE, i + 1)
+                if os.path.exists(src):
+                    if os.path.exists(dst):
+                        os.remove(dst)
+                    os.rename(src, dst)
+            os.rename(LOG_FILE, LOG_FILE + '.1')
+            _log_fp = open(LOG_FILE, 'a', encoding='utf-8')
+    except Exception:
+        _log_fp = None
+    return _log_fp
+
+
+def log(msg: str, level: str = 'normal') -> None:
+    if _LOG_LEVELS.get(LOG_LEVEL, 1) < _LOG_LEVELS.get(level, 1):
+        return
+    line = '[%s] %s' % (time.strftime('%H:%M:%S'), msg)
+    print(line, flush=True)
+    if LOG_FILE:
+        fp = _log_fp_open()
+        if fp is not None:
+            try:
+                fp.write(line + '\n')
+                fp.flush()
+            except Exception:
+                pass
+
+
+def dlog(msg: str) -> None:
+    """逐条转发流水:仅 debug 等级输出(避免高频刷屏)"""
+    log(msg, 'debug')
 
 
 class Connection:
@@ -237,7 +285,7 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
             room.broadcast(pb.UI_EVENT, env.payload)
         else:
             room.broadcast(pb.UI_EVENT, env.payload, exclude=conn.player_id)
-        log('房间 %s UI: 玩家 %d %s [%s]' % (room.code, conn.player_id,
+        dlog('房间 %s UI: 玩家 %d %s [%s]' % (room.code, conn.player_id,
                                              '打开' if ev.open else '关闭',
                                              ev.window_title or ev.window_path))
         return
@@ -268,7 +316,7 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
             room.broadcast(pb.DAY_SYNC, env.payload)
         else:
             room.broadcast(pb.DAY_SYNC, env.payload, exclude=conn.player_id)
-        log('房间 %s 天同步: 玩家 %d 第 %d 天' % (room.code, conn.player_id, ds.day))
+        dlog('房间 %s 天同步: 玩家 %d 第 %d 天' % (room.code, conn.player_id, ds.day))
         return
 
     if t == pb.CLIENT_QUEUE_SYNC:
@@ -279,7 +327,7 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
             room.broadcast(pb.CLIENT_QUEUE_SYNC, env.payload)
         else:
             room.broadcast(pb.CLIENT_QUEUE_SYNC, env.payload, exclude=conn.player_id)
-        log('房间 %s 队列快照: 玩家 %d 共 %d 位 [%s]' % (
+        dlog('房间 %s 队列快照: 玩家 %d 共 %d 位 [%s]' % (
             room.code, conn.player_id, len(qs.client_ids),
             ','.join(qs.client_ids[:6])))
         return
@@ -292,7 +340,7 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
             room.broadcast(pb.SHOP_SNAPSHOT, env.payload)
         else:
             room.broadcast(pb.SHOP_SNAPSHOT, env.payload, exclude=conn.player_id)
-        log('房间 %s 店铺快照: 玩家 %d 资金=%d 第%d天 服务%d项 声望%d项 物品%d种' % (
+        dlog('房间 %s 店铺快照: 玩家 %d 资金=%d 第%d天 服务%d项 声望%d项 物品%d种' % (
             room.code, conn.player_id, ss.cash, ss.day,
             len(ss.services), len(ss.reputations), len(ss.items)))
         return
@@ -305,7 +353,7 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
             room.broadcast(pb.CUSTOMER_LEFT, env.payload)
         else:
             room.broadcast(pb.CUSTOMER_LEFT, env.payload, exclude=conn.player_id)
-        log('房间 %s 顾客离店: 玩家 %d %s (%s)' % (
+        dlog('房间 %s 顾客离店: 玩家 %d %s (%s)' % (
             room.code, conn.player_id, cl.customer_id, cl.reason))
         return
 
@@ -317,7 +365,7 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
             room.broadcast(pb.OBJECT_USE, env.payload)
         else:
             room.broadcast(pb.OBJECT_USE, env.payload, exclude=conn.player_id)
-        log('房间 %s 物件交互: 玩家 %d %s' % (room.code, conn.player_id, ou.kind))
+        dlog('房间 %s 物件交互: 玩家 %d %s' % (room.code, conn.player_id, ou.kind))
         return
 
     if t == pb.PHONE_SYNC:
@@ -328,7 +376,7 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
             room.broadcast(pb.PHONE_SYNC, env.payload)
         else:
             room.broadcast(pb.PHONE_SYNC, env.payload, exclude=conn.player_id)
-        log('房间 %s 电话: 玩家 %d %s%s' % (room.code, conn.player_id, ph.kind,
+        dlog('房间 %s 电话: 玩家 %d %s%s' % (room.code, conn.player_id, ph.kind,
             (' 号码=%d' % ph.number) if ph.number else ''))
         return
 
@@ -340,7 +388,7 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
             room.broadcast(pb.GAME_EVENT, env.payload)
         else:
             room.broadcast(pb.GAME_EVENT, env.payload, exclude=conn.player_id)
-        log('房间 %s 游戏事件: 玩家 %d %s' % (room.code, conn.player_id, ev.kind))
+        dlog('房间 %s 游戏事件: 玩家 %d %s' % (room.code, conn.player_id, ev.kind))
         return
 
     if t == pb.SFX_SYNC:
@@ -351,7 +399,7 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
             room.broadcast(pb.SFX_SYNC, env.payload)
         else:
             room.broadcast(pb.SFX_SYNC, env.payload, exclude=conn.player_id)
-        log('房间 %s 音效: 玩家 %d %s' % (room.code, conn.player_id, sx.identifier))
+        dlog('房间 %s 音效: 玩家 %d %s' % (room.code, conn.player_id, sx.identifier))
         return
 
     if t == pb.CLIENT_BEHAVIOR:
@@ -362,7 +410,7 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
             room.broadcast(pb.CLIENT_BEHAVIOR, env.payload)
         else:
             room.broadcast(pb.CLIENT_BEHAVIOR, env.payload, exclude=conn.player_id)
-        log('房间 %s 顾客行为: 玩家 %d %s %s%s' % (room.code, conn.player_id, cb.kind, cb.client_id,
+        dlog('房间 %s 顾客行为: 玩家 %d %s %s%s' % (room.code, conn.player_id, cb.kind, cb.client_id,
             (' 金额=%d' % cb.amount) if cb.amount else ''))
         return
 
