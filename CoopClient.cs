@@ -443,6 +443,13 @@ public static class CoopClient
                 RunOnMain(() => SaveTransfer.OnChunk(sc));
                 break;
             }
+            case MsgType.InvSync:
+            {
+                var iv = Coop.InvSync.Parser.ParseFrom(env.Payload);
+                if (iv.PlayerId != PlayerId)
+                    RunOnMain(() => InvLayoutSync.ApplyRemote(iv));
+                break;
+            }
             case MsgType.ExpeditionSynced:
             {
                 var s = ExpeditionSynced.Parser.ParseFrom(env.Payload);
@@ -557,6 +564,9 @@ public static class CoopClient
 
             // ---- 店铺状态快照(房主权威) ----
             StoreStateSync.TickSend();
+
+            // ---- 库存布局(拖放后整份对齐) ----
+            InvLayoutSync.TickSend();
 
             // ---- 队友物件高亮圈淡出 ----
             ObjectUseSync.Tick();
@@ -1324,5 +1334,7 @@ public static class CoopClient
         }
         catch { }
         CoopLog.Info($"[Coop] 配置载入: 自动加入码={(string.IsNullOrEmpty(AutoJoinCode) ? "(无)" : AutoJoinCode)}");
+        // 把全部绑定项写回配置文件:老 cfg 缺新选项时 BepInEx 不会自动补,玩家就看不到/改不了新选项。
+        try { config.Save(); } catch (Exception e) { CoopLog.Warn($"[Coop] 配置写回失败: {e.Message}"); }
     }
 }
