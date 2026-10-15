@@ -73,12 +73,14 @@ public static class CoopClient
     private static readonly ConcurrentQueue<int> _pendingTurns = new();
     private static bool _applyingServer;
 
-    // 光标采集(操作可见性)
-    private static int _cursorTick;
+    // 光标采集(操作可见性):时间驱动(不随屏幕刷新率变化)
+    private static float _cursorInterval = 1f / 30f;   // 由配置"光标发送频率"决定,默认 30Hz
+    private static float _lastCursorSendAt = -99f;
+    private static float _lastCursorKeepAt = -99f;
     private static float _lastNx = -1f, _lastNy = -1f;
 
-    // 天数巡检(天同步)
-    private static int _dayTick;
+    // 天数巡检(天同步):时间驱动
+    private static float _lastDayPollAt = -99f;
     private static int _lastSentDay = -999;
 
     // 玩家信息(联机面板 + 光标名字)
@@ -443,10 +445,11 @@ public static class CoopClient
                 CoopLog.Info("[Coop] ★ TurnManager 出现了!");
             }
 
-            // ---- 光标采集上报(操作可见性,~20Hz;静止时降频) ----
-            _cursorTick++;
-            if (_cursorTick % 3 == 0 && Net != null && Handshaked && !string.IsNullOrEmpty(RoomCode))
+            // ---- 光标采集上报(操作可见性;时间驱动,默认 30Hz;移动才发,静止每 3 秒保活) ----
+            if (Net != null && Handshaked && !string.IsNullOrEmpty(RoomCode)
+                && Time.unscaledTime - _lastCursorSendAt >= _cursorInterval)
             {
+                _lastCursorSendAt = Time.unscaledTime;
                 try
                 {
                     var mp = Input.mousePosition;
@@ -455,8 +458,10 @@ public static class CoopClient
                     {
                         float nx = mp.x / w, ny = mp.y / h;
                         bool moved = Mathf.Abs(nx - _lastNx) > 0.0012f || Mathf.Abs(ny - _lastNy) > 0.0012f;
-                        if (moved || _cursorTick % 180 == 0)   // 静止时每 ~3 秒重发一次防丢
+                        bool keep = Time.unscaledTime - _lastCursorKeepAt >= 3f;   // 静止保活防丢
+                        if (moved || keep)
                         {
+                            _lastCursorKeepAt = Time.unscaledTime;
                             _lastNx = nx; _lastNy = ny;
                             Net.Send(MsgType.CursorPos, new CursorPos { Nx = nx, Ny = ny });
                         }
@@ -466,9 +471,10 @@ public static class CoopClient
             }
 
             // ---- 天数巡检上报(每 ~1 秒;数据源:StoreStation.dayCounter) ----
-            _dayTick++;
-            if (_dayTick % 60 == 0 && Net != null && Handshaked && !string.IsNullOrEmpty(RoomCode))
+            if (Net != null && Handshaked && !string.IsNullOrEmpty(RoomCode)
+                && Time.unscaledTime - _lastDayPollAt >= 1f)
             {
+                _lastDayPollAt = Time.unscaledTime;
                 try
                 {
                     var ss = StoreStation.Instance;
@@ -1197,6 +1203,8 @@ public static class CoopClient
         PhoneEffectOn = config.Bind("联机", "通话效果对对方生效", false, "false(默认)=你打电话时队友只是观看,不产生任何效果;true=队友端也真实生效").Value;
         var logLv = config.Bind("联机", "日志详细程度", "正常", "安静=只留警告与错误; 正常=连接/房间/存档/错误+同步结果; 详细=再含逐条流水(排查问题用)").Value;
         CoopLog.Level = logLv == "安静" ? CoopLogLv.Quiet : (logLv == "详细" ? CoopLogLv.Verbose : CoopLogLv.Normal);
+        var hz = config.Bind("联机", "光标发送频率", 30, "每秒上报多少次队友光标(5~60;默认 30 已足够,配合插值观感平滑;调高只增加带宽)").Value;
+        _cursorInterval = 1f / Math.Max(5, Math.Min(60, hz));
         AutoTest = config.Bind("测试", "自动开局与回合测试", false, "诊断用:自动从主菜单开局并推进回合(正式联机请保持 false)").Value;
         // 自动加入码:优先环境变量,其次同目录测试文件 coop_test.txt(内容=房间码)
         try
