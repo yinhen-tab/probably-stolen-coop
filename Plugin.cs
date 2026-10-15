@@ -14,26 +14,26 @@ public class Plugin : BasePlugin
     public override void Load()
     {
         Log = base.Log;
-        Log.LogInfo($"{MyPluginInfo.PLUGIN_NAME} v{MyPluginInfo.PLUGIN_VERSION} 已加载(诊断版)");
-        CoopClient.LoadConfig(Config);
+        CoopClient.LoadConfig(Config);   // 先读配置(含日志等级),后续日志才受等级控制
+
+        CoopLog.Info($"[Coop] {MyPluginInfo.PLUGIN_NAME} v{MyPluginInfo.PLUGIN_VERSION} 已加载 (日志={CoopLog.Level})");
 
         var harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
         harmony.PatchAll();
 
+        int patched = 0;
         try
         {
-            int n = 0;
             foreach (var m in harmony.GetPatchedMethods())
             {
-                n++;
-                Log.LogInfo($"[Coop] 已挂补丁 {n}: {m.FullDescription()}");
+                patched++;
+                CoopLog.Detail($"[Coop] 已挂补丁 {patched}: {m.FullDescription()}");   // 仅详细模式逐条列出
             }
         }
         catch (Exception e)
         {
-            Log.LogWarning($"[Coop] 打印补丁列表失败: {e.Message}");
+            CoopLog.Warn($"[Coop] 统计补丁列表失败: {e.Message}");
         }
-
-        Log.LogInfo("Harmony 补丁已应用");
+        CoopLog.Info($"[Coop] Harmony 补丁已应用: {patched} 个");
     }
 }
