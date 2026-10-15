@@ -43,6 +43,7 @@ enum MsgType {
   SAVE_REQUEST = 30;       // 客户端 → 服务端 → 房主:请求房主把存档发过来(队友进房即用房主的档)
   SAVE_META = 31;          // 房主 → 服务端 → 队友:存档元信息(槽位/总长/校验)
   SAVE_CHUNK = 32;         // 房主 → 服务端 → 队友:存档分片
+  INV_SYNC = 33;           // 广播:库存布局同步(拖放后整份对齐)
 }
 
 // 信封:所有消息的统一外层(便于扩展与版本协商)
@@ -295,4 +296,10 @@ message SaveMeta {
 message SaveChunk {
   int32 seq = 1;          // 分片序号(从 0 开始)
   bytes data = 2;         // 分片内容(建议 <=256KB)
+}
+
+// ---- 库存布局同步(拖放后整份对齐:物品位置/朝向/容器内容) ----
+message InvSync {
+  int32 player_id = 1;
+  repeated string items_json = 2;   // 每个物品一个游戏原生 JSON(PlayerStore.EncodeItem)
 }
