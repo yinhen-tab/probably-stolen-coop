@@ -44,6 +44,24 @@ public static class CoopClient
     public static int PlayerId;
     public static bool Handshaked;
 
+    // ---------- 体验同步：开关与规则 ----------
+    /// <summary>是否同步音效(队友音效本地回放)</summary>
+    public static bool SyncAudio = true;
+    /// <summary>是否同步顾客行为事件(进店/挑选/成交)</summary>
+    public static bool SyncBehavior = true;
+    /// <summary>通话效果规则:true=对方观看的通话也真实生效;false(默认)=纯观看,对方通话不产生任何效果</summary>
+    public static bool PhoneEffectOn = false;
+    /// <summary>远端回放上下文:为 true 时本地的"效果"钩子应跳过(避免对方观看/回放时污染本地状态)</summary>
+    public static bool BlockGameEffects;
+
+    // ---------- 掉线重连 ----------
+    private static bool _reconnecting;
+    private static bool _rejoinPending;
+    private static int _reconnectAttempts;
+    private static float _lastReconnectTry;
+    public static int ReconnectAttempts => _reconnectAttempts;
+    public static bool Reconnecting => _reconnecting;
+
     /// <summary>本 mod 协议版本(与服务端校验;不匹配会明确提示而不是静默错乱)</summary>
     public const int ModProtocol = 1;
 
@@ -95,6 +113,56 @@ public static class CoopClient
         }
     }
 
+    /// <summary>心跳调用:掉线时自动重连(仅在"曾经进过房间"时启用,单机不受影响)</summary>
+    static void TickReconnect()
+    {
+        if (!WantsConnect) return;
+        if (string.IsNullOrEmpty(RoomCode)) return;   // 没进过房 = 单机,不重连
+
+        if (Net != null && Net.IsConnected)
+        {
+            if (_reconnecting)
+            {
+                _reconnecting = false;   // 已恢复(由 WELCOME/RoomJoined 完成 rejoin)
+                _reconnectAttempts = 0;
+                Plugin.Log.LogInfo("[Coop] 连接已恢复");
+            }
+            return;
+        }
+
+        // 已断开
+        if (!_reconnecting)
+        {
+            _reconnecting = true;
+            _rejoinPending = true;
+            Plugin.Log.LogWarning("[Coop] 连接已断开,启动自动重连…");
+            RunOnMain(() => CoopHud.Toast("连接断开,正在重连…"));
+        }
+        if (Time.time - _lastReconnectTry < 3f) return;
+        _lastReconnectTry = Time.time;
+        _reconnectAttempts++;
+        if (_reconnectAttempts > 60)
+        {
+            Plugin.Log.LogWarning("[Coop] 重连已达 60 次仍未成功,停止重连(可手动重新打开联机面板)");
+            _reconnecting = false;
+            _rejoinPending = false;
+            return;
+        }
+        try
+        {
+            Plugin.Log.LogInfo($"[Coop] 重连尝试 #{_reconnectAttempts} → {ServerHost}:{ServerPort}");
+            var old = Net;
+            Net = null;
+            try { old?.Dispose(); } catch { }
+            TryConnect();   // 重建连接并握手(WELCOME 里会自动 rejoin)
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.LogWarning($"[Coop] 重连异常: {e.Message}");
+            Net = null;
+        }
+    }
+
     // ---------- 主线程调度(队列 + 心跳协程消化) ----------
 
     /// <summary>从任意线程把动作排到 Unity 主线程(由心跳协程执行)</summary>
@@ -125,6 +193,12 @@ public static class CoopClient
                     RunOnMain(() => CoopHud.Toast(err));
                 }
                 TryAutoJoin();   // 测试:自动加入(网络线程直接发,无需主线程)
+                // 掉线重连:重连成功后自动重新加入原房间
+                if (_rejoinPending && !string.IsNullOrEmpty(RoomCode))
+                {
+                    Plugin.Log.LogInfo($"[Coop] 重连成功,重新加入房间 {RoomCode}");
+                    Net.Send(MsgType.JoinRoom, new JoinRoom { RoomCode = RoomCode });
+                }
                 // 不自动建房/加入:只有玩家在"多人联机"面板操作才会进房间(单机不受影响)
                 break;
             }
@@ -150,6 +224,15 @@ public static class CoopClient
                 }
                 UpdatePeerName();
                 Plugin.Log.LogInfo($"[Coop] 房间 {RoomCode} | {j.State.Players.Count} 人 | 回合 {RoomTurnCount}");
+                if (_rejoinPending)
+                {
+                    _rejoinPending = false;
+                    _reconnecting = false;
+                    _reconnectAttempts = 0;
+                    RequestResync();   // 请求房主重发全量快照,重连期间的状态差异一次对齐
+                    RunOnMain(() => CoopHud.Toast($"已重连到房间 {RoomCode}"));
+                    Plugin.Log.LogInfo($"[Coop] 重连完成,已请求状态对齐(房间 {RoomCode})");
+                }
                 break;
             }
             case MsgType.PlayerJoined:
@@ -265,6 +348,34 @@ public static class CoopClient
                 var ph = Coop.PhoneSync.Parser.ParseFrom(env.Payload);
                 if (ph.PlayerId != PlayerId)
                     RunOnMain(() => PhoneSync.ApplyRemote(ph));
+                break;
+            }
+            case MsgType.SfxSync:
+            {
+                var sx = Coop.SfxSync.Parser.ParseFrom(env.Payload);
+                if (sx.PlayerId != PlayerId)
+                    RunOnMain(() => AudioSync.ApplyRemote(sx));
+                break;
+            }
+            case MsgType.ClientBehavior:
+            {
+                var cb = Coop.ClientBehavior.Parser.ParseFrom(env.Payload);
+                if (cb.PlayerId != PlayerId)
+                    RunOnMain(() => CustomerBehaviorSync.ApplyRemote(cb));
+                break;
+            }
+            case MsgType.ResyncRequest:
+            {
+                // 有人重连请求对齐:作为房主强制重发全量快照(队列 + 店铺)
+                if (IsHost)
+                {
+                    RunOnMain(() =>
+                    {
+                        CustomerQueueSync.ForceSendNextTick();
+                        StoreStateSync.ForceSendNextTick();
+                    });
+                    Plugin.Log.LogInfo("[Coop] 队友请求重新同步 → 已排程重发快照");
+                }
                 break;
             }
             case MsgType.ExpeditionSynced:
@@ -384,6 +495,12 @@ public static class CoopClient
 
             // ---- 队友物件高亮圈淡出 ----
             ObjectUseSync.Tick();
+
+            // ---- 队友光标平滑插值 ----
+            FriendCursor.Tick();
+
+            // ---- 掉线自动重连 ----
+            TickReconnect();
 
             // ---- 测试:进房后自动打开存档界面 ----
             AutoOpenLoadUi();
@@ -666,6 +783,38 @@ public static class CoopClient
         {
             Plugin.Log.LogWarning($"[Coop] 电话上报失败: {e.Message}");
         }
+    }
+
+    /// <summary>音效上报(队友本地回放)</summary>
+    public static void SendSfx(string identifier, int variant)
+    {
+        if (Net == null || !Handshaked || string.IsNullOrEmpty(RoomCode)) return;
+        try { Net.Send(MsgType.SfxSync, new Coop.SfxSync { PlayerId = PlayerId, Identifier = identifier, Variant = variant }); }
+        catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 音效上报失败: {e.Message}"); }
+    }
+
+    /// <summary>顾客行为事件上报</summary>
+    public static void SendClientBehavior(string clientId, string kind, string detail, int amount)
+    {
+        if (Net == null || !Handshaked || string.IsNullOrEmpty(RoomCode)) return;
+        try
+        {
+            Net.Send(MsgType.ClientBehavior, new Coop.ClientBehavior
+            { PlayerId = PlayerId, ClientId = clientId, Kind = kind, Detail = detail ?? "", Amount = amount });
+        }
+        catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 顾客行为上报失败: {e.Message}"); }
+    }
+
+    /// <summary>重连成功后请求房主重发全量快照(状态对齐)</summary>
+    public static void RequestResync()
+    {
+        if (Net == null || !Handshaked || string.IsNullOrEmpty(RoomCode)) return;
+        try
+        {
+            Net.Send(MsgType.ResyncRequest, new Coop.ResyncRequest { PlayerId = PlayerId });
+            Plugin.Log.LogInfo("[Coop] 已请求重新同步(重连对齐)");
+        }
+        catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 请求重同步失败: {e.Message}"); }
     }
 
     /// <summary>执行远端 UI 事件(主线程;期间置 ApplyingRemote 防回环上报)</summary>
@@ -1043,6 +1192,9 @@ public static class CoopClient
         ServerPort = config.Bind("联机", "服务器端口", 27500, "权威服务器端口(WSS 公网通常填 443)").Value;
         UseWss = config.Bind("联机", "加密连接(wss)", false, "false=ws(本地/直连); true=wss(公网 CDN/HTTPS 转发,如 EdgeOne)").Value;
         MyName = config.Bind("联机", "玩家昵称", "玩家" + Environment.TickCount % 10000, "显示给队友的名字").Value;
+        SyncAudio = config.Bind("联机", "同步音效", true, "true=队友触发的音效在你这边也回放(音画一致)").Value;
+        SyncBehavior = config.Bind("联机", "同步顾客行为", true, "true=顾客进店/挑选/成交事件同步,保证同一顾客两端结果一致").Value;
+        PhoneEffectOn = config.Bind("联机", "通话效果对对方生效", false, "false(默认)=你打电话时队友只是观看,不产生任何效果;true=队友端也真实生效").Value;
         AutoTest = config.Bind("测试", "自动开局与回合测试", false, "诊断用:自动从主菜单开局并推进回合(正式联机请保持 false)").Value;
         // 自动加入码:优先环境变量,其次同目录测试文件 coop_test.txt(内容=房间码)
         try
