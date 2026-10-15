@@ -69,7 +69,7 @@ public static class CustomerBehaviorSync
             var stack = mgr != null ? mgr.clientStack : null;
             if (stack == null)
             {
-                Plugin.Log.LogInfo($"[Coop] 顾客行为[{m.Kind}] {m.ClientId}(本地队列未就绪,忽略)");
+                CoopLog.Info($"[Coop] 顾客行为[{m.Kind}] {m.ClientId}(本地队列未就绪,忽略)");
                 return;
             }
             StoreClient target = null;
@@ -81,7 +81,7 @@ public static class CustomerBehaviorSync
             if (target == null)
             {
                 // 该顾客已不在本地队列(可能本轮已离店):仅记录
-                Plugin.Log.LogInfo($"[Coop] 顾客行为[{m.Kind}] {m.ClientId}(本地已无此顾客)");
+                CoopLog.Info($"[Coop] 顾客行为[{m.Kind}] {m.ClientId}(本地已无此顾客)");
                 return;
             }
 
@@ -92,17 +92,17 @@ public static class CustomerBehaviorSync
                 {
                     case K_INTRO:
                         if (!target.isIntroduced) target.isIntroduced = true;
-                        Plugin.Log.LogInfo($"[Coop] 同步: 顾客 {m.ClientId} 开始服务");
+                        CoopLog.Detail($"[Coop] 同步: 顾客 {m.ClientId} 开始服务");
                         break;
                     case K_DONE:
                         if (!target.isBusinessComplete) target.isBusinessComplete = true;
-                        Plugin.Log.LogInfo($"[Coop] 同步: 顾客 {m.ClientId} 交易完成");
+                        CoopLog.Detail($"[Coop] 同步: 顾客 {m.ClientId} 交易完成");
                         break;
                     case K_SOLD:
-                        Plugin.Log.LogInfo($"[Coop] 同步: 顾客 {m.ClientId} 成交 {m.Detail}");
+                        CoopLog.Detail($"[Coop] 同步: 顾客 {m.ClientId} 成交 {m.Detail}");
                         break;
                     case K_PLACED:
-                        Plugin.Log.LogInfo($"[Coop] 同步: 顾客 {m.ClientId} 挑选 {m.Detail}");
+                        CoopLog.Detail($"[Coop] 同步: 顾客 {m.ClientId} 挑选 {m.Detail}");
                         break;
                 }
             }
