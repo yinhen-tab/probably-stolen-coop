@@ -36,6 +36,7 @@ enum MsgType {
   SHOP_SNAPSHOT = 23;     // 房主权威:店铺完整快照(同店铺)
   OBJECT_USE = 24;         // 广播:店内物件交互(看得见对方)
   PHONE_SYNC = 25;         // 广播:电话同步(界面开关 + 拨号/挂断)
+  CUSTOMER_LEFT = 26;      // 广播:顾客成交离店(队列实时一致性)
 }
 
 // 信封:所有消息的统一外层(便于扩展与版本协商)
@@ -50,12 +51,15 @@ message Hello {
   string player_name = 1;
   string mod_version = 2;   // 例如 "0.1.0"
   string game_build = 3;    // 游戏 buildid,便于服务端记录
+  int32 protocol = 4;       // 客户端 mod 协议版本(与服务端校验,不匹配拒连)
 }
 
 message Welcome {
   int32 player_id = 1;
   int32 server_protocol = 2;
   string server_version = 3;
+  int32 min_protocol = 4;      // 服务端要求的最低协议版本
+  string min_mod_version = 5;  // 服务端要求的最低 mod 版本(提示用)
 }
 
 // ---- 房间 ----
@@ -220,6 +224,15 @@ message StoreSnapshot {
   string cassette_inv_json = 21;    // 磁带机库存(游戏原生序列化格式)
   string vending_inv_json = 22;     // 售货机库存
   repeated ItemState items = 23;    // 持有物品(id + 数量)
+  bool authoritative = 24;          // true=权威全量(接收端直接覆盖,用于进房初始对齐)
+  string fountain_inv_json = 25;    // 饮水机库存
+}
+
+// ---- 顾客成交离店(队列实时一致性) ----
+message CustomerLeft {
+  int32 player_id = 1;
+  string customer_id = 2;   // 离店顾客 identifier
+  string reason = 3;        // "dealt"=成交离店 / "left"=其他原因
 }
 
 // ---- 店内物件交互(P0 可见性) ----
