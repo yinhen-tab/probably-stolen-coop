@@ -54,81 +54,54 @@ public static class FriendCursor
     private static float _curX, _curY;      // 当前渲染位置(屏幕像素)
     private static bool _hasTarget;
 
-    // ---------- 拖动轨迹(队友拖动物品时显示一条淡出的路径) ----------
-    private const int TrailLen = 18;
-    private const float TrailLife = 1.3f;
-    private static Image[] _trail;
-    private static Vector3[] _trailPos;
-    private static float[] _trailAt;
-    private static int _trailHead;
-    private static bool _dragging;
-    private static Vector3 _trailLast;
-    private static float _trailLastAt;
+    // ---------- 拖动跟随(让"同一件物品"跟着队友光标走,效果与单机拖拽一致) ----------
+    private static bool _dragging;            // 队友是否正在拖拽
+    private static GameItem _dragItem;        // 队友正在拖的那一件(本地对应的物品)
+    private static Vector2 _dragBasePx;       // 起始时的模型像素位
+    private static Vector2 _dragBaseLocal;    // 起始时的光标(库存局部坐标)
+    private static bool _dragBaseSet;         // 起点已标定
+    private static float _dragStartAt;
+    private static bool _dragGhostUsed;
 
-    static void EnsureTrail()
+    /// <summary>队友鼠标位置(屏幕像素)换算到某个库存的局部坐标</summary>
+    static bool ToInvLocal(RectTransform rt, float screenX, float screenY, out Vector2 local)
     {
-        if (_trail != null || _root == null) return;
-        _trail = new Image[TrailLen];
-        _trailPos = new Vector3[TrailLen];
-        _trailAt = new float[TrailLen];
-        for (int i = 0; i < TrailLen; i++)
+        local = Vector2.zero;
+        if (rt == null) return false;
+        try
         {
-            var go = new GameObject("trail" + i);
-            go.transform.SetParent(_root.transform, false);
-            var img = go.AddComponent<Image>();
-            img.raycastTarget = false;
-            img.color = new Color(1f, 0.85f, 0.35f, 0f);
-            var rt = go.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(9f, 9f);
-            go.SetActive(false);
-            _trail[i] = img;
+            // overlay canvas(相机传 null);沿用客户光标用的屏幕像素坐标
+            return RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                rt, new Vector2(screenX, screenY), null, out local);
         }
+        catch { return false; }
     }
 
-    static void PushTrail(float px, float py)
+    /// <summary>每帧:把队友拖的那件物品画到队友光标处(用"起点 + 位移增量",避开锚点差异)</summary>
+    static void TickDragFollow()
     {
-        EnsureTrail();
-        if (_trail == null) return;
-        float now = Time.unscaledTime;
-        if (now - _trailLastAt < 0.04f
-            && Mathf.Abs(px - _trailLast.x) < 14f && Mathf.Abs(py - _trailLast.y) < 14f) return;
-        _trailHead = (_trailHead + 1) % TrailLen;
-        _trailPos[_trailHead] = new Vector3(px, py, 0f);
-        _trailAt[_trailHead] = now;
-        _trailLast = new Vector3(px, py, 0f);
-        _trailLastAt = now;
-    }
-
-    static void TickTrail()
-    {
-        if (_trail == null) return;
-        float now = Time.unscaledTime;
-        for (int i = 0; i < TrailLen; i++)
+        if (!_dragging || _dragItem == null) return;
+        try
         {
-            var img = _trail[i];
-            if (img == null) continue;
-            float age = now - _trailAt[i];
-            if (_trailAt[i] <= 0f || age > TrailLife)
+            var inv = ItemMoveSync.GridOf(_dragItem);
+            var rt = inv != null ? inv.rectTransform : null;
+            if (rt == null) return;
+            if (!ToInvLocal(rt, _tgtX, _tgtY, out var local)) return;
+
+            if (!_dragBaseSet)
             {
-                if (img.gameObject.activeSelf) img.gameObject.SetActive(false);
-                continue;
+                var sh = ItemMoveSync.Placed(_dragItem);
+                if (sh == null) return;
+                _dragBasePx = ItemMoveSync.ToPixel(inv, sh, sh.minX, sh.minY);
+                _dragBaseLocal = local;
+                _dragBaseSet = true;
+                return;
             }
-            var c = img.color;
-            c.a = Mathf.Clamp01(1f - age / TrailLife) * 0.55f;
-            img.color = c;
-            img.transform.position = _trailPos[i];
-            if (!img.gameObject.activeSelf) img.gameObject.SetActive(true);
+            var target = _dragBasePx + (local - _dragBaseLocal);
+            var ge = _dragItem.TryCast<GameItemElement>();
+            if (ge != null) ge.SetCenteredPosition(target.x, target.y);
         }
-    }
-
-    static void ClearTrail()
-    {
-        if (_trail == null) return;
-        for (int i = 0; i < TrailLen; i++)
-        {
-            _trailAt[i] = 0f;
-            if (_trail[i] != null && _trail[i].gameObject.activeSelf) _trail[i].gameObject.SetActive(false);
-        }
+        catch { }
     }
 
     public static void SetPeerName(string name)
@@ -158,7 +131,6 @@ public static class FriendCursor
                 _hasTarget = true;
             }
             _tgtX = px; _tgtY = py;
-            if (_dragging) PushTrail(px, py);   // 拖动中:记录轨迹点
             ApplyPos(_curX, _curY);   // 立即应用一次(屏幕尺寸变化时也能跟上)
         }
         catch (Exception e)
@@ -186,7 +158,7 @@ public static class FriendCursor
                 _curX += dx * k; _curY += dy * k;
             }
             ApplyPos(_curX, _curY);
-            TickTrail();
+            TickDragFollow();
         }
         catch { }
     }
@@ -201,15 +173,28 @@ public static class FriendCursor
             _dragGhost.transform.position = new Vector3(px + 20, py + 24, 0f);
     }
 
-    /// <summary>拖拽状态(队友拖动物品时显示幽灵)</summary>
-    public static void SetDragging(bool dragging, string hint)
+    /// <summary>拖拽状态:优先让"同一件物品"跟着光标走;找不到该物品时才退回幽灵提示</summary>
+    public static void SetDragging(bool dragging, string hint, int uid = 0, string ident = "")
     {
         try
         {
-            if (_dragGhost == null) return;
             _dragging = dragging;
-            if (!dragging) ClearTrail();
-            _dragGhost.SetActive(dragging && _visible);
+            if (dragging)
+            {
+                _dragItem = (uid != 0 || !string.IsNullOrEmpty(ident))
+                    ? ItemMoveSync.FindItem(uid, ident) : null;
+                _dragBaseSet = false;
+                _dragStartAt = Time.unscaledTime;
+            }
+            else
+            {
+                _dragItem = null;
+                _dragBaseSet = false;
+            }
+            // 只有"找不到物品本体"时才显示幽灵文字(找到了就让物品自己动,和单机一致)
+            bool ghost = dragging && _dragItem == null && _visible
+                         && Time.unscaledTime - _dragStartAt > 0.25f;
+            if (_dragGhost != null) _dragGhost.SetActive(ghost);
             if (_dragLabel != null)
                 _dragLabel.text = string.IsNullOrEmpty(hint) ? "拖动中…" : ("拖动中: " + hint);
         }
@@ -223,7 +208,8 @@ public static class FriendCursor
             if (_root != null) { _root.SetActive(false); _visible = false; }
             if (_dragGhost != null) _dragGhost.SetActive(false);
             _dragging = false;
-            ClearTrail();
+            _dragItem = null;
+            _dragBaseSet = false;
         }
         catch { }
     }
