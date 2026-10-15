@@ -59,7 +59,7 @@ public static class ObjectUseSync
                 Ny = ny,
             });
             string cn = Names.TryGetValue(kind, out var c) ? c : kind;
-            Plugin.Log.LogInfo($"[Coop] 本地使用物件: {cn}");
+            CoopLog.Info($"[Coop] 本地使用物件: {cn}");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 物件上报异常: {e.Message}"); }
     }
@@ -70,7 +70,7 @@ public static class ObjectUseSync
         try
         {
             string cn = Names.TryGetValue(msg.Kind, out var c) ? c : msg.Kind;
-            Plugin.Log.LogInfo($"[Coop] 队友使用了: {cn}");
+            CoopLog.Detail($"[Coop] 队友使用了: {cn}");
             CoopHud.Toast($"队友打开了{cn}");
             // 物件高亮圈已取消显示(仅保留顶部提示);如需恢复,取消下一行注释即可
             // PeerMarker.Show(msg.Kind, msg.Nx, msg.Ny);
