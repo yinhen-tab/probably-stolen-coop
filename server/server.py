@@ -119,7 +119,8 @@ class Connection:
 
 
 class Room:
-    __slots__ = ('code', 'turn_count', 'day', 'players', 'created_at')
+    __slots__ = ('code', 'turn_count', 'day', 'players', 'created_at',
+                 'save_meta', 'save_buf', 'save_chunks')
 
     def __init__(self, code: str):
         self.code = code
@@ -127,6 +128,23 @@ class Room:
         self.day = 1
         self.players = {}   # player_id -> Connection
         self.created_at = time.monotonic()
+        # 房主存档(队友进房直接载入房主的档)
+        self.save_meta = None     # pb.SaveMeta
+        self.save_buf = bytearray()
+        self.save_chunks = []     # [分片原始 payload],便于给后加入者重放
+
+    def save_ready(self) -> bool:
+        return self.save_meta is not None and len(self.save_buf) >= self.save_meta.total
+
+    async def send_save_to(self, conn) -> None:
+        """把已就绪的存档重放给某个连接(后进房/重连时)"""
+        if not self.save_ready():
+            return
+        await conn.send(pb.SAVE_META, self.save_meta.SerializeToString())
+        for payload in self.save_chunks:
+            await conn.send(pb.SAVE_CHUNK, payload)
+        log('房间 %s 存档已下发给玩家 %d(%.1f KB)' % (
+            self.code, conn.player_id, len(self.save_buf) / 1024))
 
     def broadcast(self, msg_type: int, payload: bytes = b'', exclude: int = 0) -> None:
         # exclude: 不发给某个 player_id(如加入者本人不需要知道自己加入)
@@ -228,6 +246,8 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
         room.players[conn.player_id] = conn
         conn.room = room
         await conn.send(pb.ROOM_JOINED, pb.RoomJoined(state=room.state_msg()).SerializeToString())
+        # 进房后:若房主存档已就绪,立即下发给新加入者(队友直接载入房主的档)
+        await room.send_save_to(conn)
         room.broadcast(pb.PLAYER_JOINED, pb.PlayerInfo(
             player_id=conn.player_id, player_name=conn.player_name).SerializeToString(),
             exclude=conn.player_id)
@@ -239,6 +259,7 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
         if t in (pb.CURSOR_POS, pb.UI_EVENT, pb.PLAYER_CLICK, pb.DRAG_STATE, pb.GAME_EVENT,
                  pb.OBJECT_USE, pb.PHONE_SYNC, pb.CUSTOMER_LEFT, pb.SFX_SYNC,
                  pb.CLIENT_BEHAVIOR, pb.RESYNC_REQUEST,
+                 pb.SAVE_REQUEST, pb.SAVE_META, pb.SAVE_CHUNK,
                  pb.SHOP_SNAPSHOT, pb.CLIENT_QUEUE_SYNC, pb.DAY_SYNC):
             return
         await conn.send(pb.ERROR, pb.ErrorMsg(code='NOT_IN_ROOM', message='先创建或加入房间').SerializeToString())
@@ -421,6 +442,35 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
         else:
             room.broadcast(pb.RESYNC_REQUEST, env.payload, exclude=conn.player_id)
         log('房间 %s 玩家 %d 请求重新同步(重连对齐)' % (room.code, conn.player_id))
+        return
+
+    if t == pb.SAVE_REQUEST:
+        # 队友请求房主的存档:转给其他人(房主收到后会 SaveGame 并上传)
+        room.broadcast(pb.SAVE_REQUEST, env.payload, exclude=conn.player_id)
+        log('房间 %s 玩家 %d 请求房主存档' % (room.code, conn.player_id))
+        return
+
+    if t == pb.SAVE_META:
+        meta = pb.SaveMeta()
+        meta.ParseFromString(env.payload)
+        room.save_meta = meta
+        room.save_buf = bytearray()
+        room.save_chunks = []
+        room.broadcast(pb.SAVE_META, env.payload, exclude=conn.player_id)
+        log('房间 %s 存档开始传输: 槽位=%d 大小=%.1f KB hash=%s' % (
+            room.code, meta.slot, meta.total / 1024, meta.hash))
+        return
+
+    if t == pb.SAVE_CHUNK:
+        ch = pb.SaveChunk()
+        ch.ParseFromString(env.payload)
+        if room.save_meta is not None:
+            room.save_chunks.append(env.payload)
+            room.save_buf.extend(ch.data)
+            if room.save_ready():
+                log('房间 %s 存档已就绪(%.1f KB, %d 片)' % (
+                    room.code, len(room.save_buf) / 1024, len(room.save_chunks)))
+        room.broadcast(pb.SAVE_CHUNK, env.payload, exclude=conn.player_id)
         return
 
     if t == pb.PING:
