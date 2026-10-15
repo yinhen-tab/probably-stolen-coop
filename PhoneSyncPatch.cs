@@ -36,6 +36,9 @@ public static class PhoneSync
             var ui = PhoneUIManager.Instance;
             if (ui == null) return;
             ApplyingRemote = true;
+            bool prevBlock = CoopClient.BlockGameEffects;
+            // 通话效果规则:默认"观看"→ 屏蔽本地效果钩子,避免对方通话污染本端状态
+            if (!CoopClient.PhoneEffectOn) CoopClient.BlockGameEffects = true;
             try
             {
                 switch (m.Kind)
@@ -54,7 +57,8 @@ public static class PhoneSync
                         if (ui.phoneBookUIManager != null) ui.phoneBookUIManager.CloseUI();
                         break;
                     case "call":
-                        Plugin.Log.LogInfo($"[Coop] 队友正在拨打 {m.Number}");
+                        Plugin.Log.LogInfo($"[Coop] 队友正在拨打 {m.Number}" +
+                            (CoopClient.PhoneEffectOn ? "" : "(观看模式:不产生效果)"));
                         ui.HandleCall(m.Number);
                         break;
                     case "hangup":
@@ -62,7 +66,11 @@ public static class PhoneSync
                         break;
                 }
             }
-            finally { ApplyingRemote = false; }
+            finally
+            {
+                CoopClient.BlockGameEffects = prevBlock;
+                ApplyingRemote = false;
+            }
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 电话同步执行异常: {e.Message}"); }
     }
