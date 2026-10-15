@@ -259,7 +259,7 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
         if t in (pb.CURSOR_POS, pb.UI_EVENT, pb.PLAYER_CLICK, pb.DRAG_STATE, pb.GAME_EVENT,
                  pb.OBJECT_USE, pb.PHONE_SYNC, pb.CUSTOMER_LEFT, pb.SFX_SYNC,
                  pb.CLIENT_BEHAVIOR, pb.RESYNC_REQUEST,
-                 pb.SAVE_REQUEST, pb.SAVE_META, pb.SAVE_CHUNK, pb.INV_SYNC,
+                 pb.SAVE_REQUEST, pb.SAVE_META, pb.SAVE_CHUNK, pb.INV_SYNC, pb.ITEM_MOVE,
                  pb.SHOP_SNAPSHOT, pb.CLIENT_QUEUE_SYNC, pb.DAY_SYNC):
             return
         await conn.send(pb.ERROR, pb.ErrorMsg(code='NOT_IN_ROOM', message='先创建或加入房间').SerializeToString())
@@ -471,6 +471,15 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
                 log('房间 %s 存档已就绪(%.1f KB, %d 片)' % (
                     room.code, len(room.save_buf) / 1024, len(room.save_chunks)))
         room.broadcast(pb.SAVE_CHUNK, env.payload, exclude=conn.player_id)
+        return
+
+    if t == pb.ITEM_MOVE:
+        # 单个物品位置变化:转发(非破坏性,只影响这一件)
+        im = pb.ItemMove()
+        im.ParseFromString(env.payload)
+        room.broadcast(pb.ITEM_MOVE, env.payload, exclude=conn.player_id)
+        dlog('房间 %s 物品移动: 玩家 %d uid=%d → (%d,%d) rot=%d flip=%s' % (
+            room.code, conn.player_id, im.unique_id, im.min_x, im.min_y, im.orientation, im.flipped))
         return
 
     if t == pb.INV_SYNC:
