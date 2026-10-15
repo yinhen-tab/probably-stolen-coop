@@ -1,0 +1,15 @@
+[Unit]
+Description=Probably Stolen Coop Server (WebSocket)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/probably-stolen-coop/server
+ExecStart=/usr/bin/python3 /opt/probably-stolen-coop/server/server.py
+Restart=always
+RestartSec=3
+Environment=COOP_HOST=0.0.0.0
+Environment=COOP_PORT=27500
+
+[Install]
+WantedBy=multi-user.target
