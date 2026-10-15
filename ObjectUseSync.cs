@@ -179,9 +179,9 @@ public static class ObjectUseSync
                 if (all != null)
                     for (int i = 0; i < all.Count && n < 24; i++)
                         if (all[i] != null) { sb.Append(all[i].identifier).Append(','); n++; }
-                CoopLog.Warn($"[Coop] 容器同步: 本地没有物品 {itemId}(拥有物品 {all?.Count ?? -1} 个: {sb})");
+                CoopLog.Detail($"[Coop] 容器同步: 本地没有物品 {itemId}(拥有物品 {all?.Count ?? -1} 个: {sb})");
             }
-            catch { CoopLog.Warn($"[Coop] 容器同步: 本地没有物品 {itemId}"); }
+            catch { CoopLog.Detail($"[Coop] 容器同步: 本地没有物品 {itemId}"); }
             return;
         }
 
