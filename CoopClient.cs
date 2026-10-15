@@ -201,6 +201,21 @@ public static class CoopClient
         }
     }
 
+    /// <summary>
+    /// 主线程泵:消化网络线程入队的动作 + 延时任务。
+    /// **心跳协程和主菜单 tick 都要调用** —— 队友在主菜单等房主存档时,心跳还没启动,
+    /// 只有主菜单 tick 在跑(否则收到的存档永远不会被处理)。
+    /// </summary>
+    public static void PumpMainThread()
+    {
+        while (_mainQueue.TryDequeue(out var act))
+        {
+            try { act(); }
+            catch (Exception e) { CoopLog.Warn($"[Coop] 主线程任务异常: {e.Message}"); }
+        }
+        PumpDelayed();
+    }
+
     // ---------- 网络线程:消息处理 ----------
 
     static void Handle(Envelope env)
@@ -474,11 +489,7 @@ public static class CoopClient
         int hb = 0;
         while (true)
         {
-            while (_mainQueue.TryDequeue(out var act))
-            {
-                try { act(); }
-                catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 主线程任务异常: {e.Message}"); }
-            }
+            PumpMainThread();   // 主线程队列 + 延时任务(主菜单 tick 也调同一套)
             while (_pendingTurns.TryDequeue(out var turn))
             {
                 RoomTurnCount = turn;
@@ -552,9 +563,6 @@ public static class CoopClient
 
             // ---- 队友光标平滑插值 ----
             FriendCursor.Tick();
-
-            // ---- 延迟任务(等 UI 就绪后点按钮等) ----
-            PumpDelayed();
 
             // ---- 掉线自动重连 ----
             TickReconnect();
@@ -1086,6 +1094,8 @@ public static class CoopClient
     public static void AutoOpenLoadUi()
     {
         if (string.IsNullOrEmpty(AutoJoinCode)) return;
+        // 队友且启用"用房主的存档":由 SaveTransfer 收到存档后自动载入,这里不抢
+        if (!IsHost && SaveTransfer.Enabled) return;
         try
         {
             if (string.IsNullOrEmpty(RoomCode)) return;
