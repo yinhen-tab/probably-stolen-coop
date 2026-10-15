@@ -49,6 +49,11 @@ public static class FriendCursor
     private static bool _visible;
     private static string _peerName = "队友";
 
+    // 插值:网络更新只设目标,每帧平滑逼近(消除"一跳一跳")
+    private static float _tgtX, _tgtY;      // 目标位置(屏幕像素)
+    private static float _curX, _curY;      // 当前渲染位置(屏幕像素)
+    private static bool _hasTarget;
+
     public static void SetPeerName(string name)
     {
         if (string.IsNullOrEmpty(name)) return;
@@ -56,6 +61,7 @@ public static class FriendCursor
         try { if (_nameText != null) _nameText.text = name; } catch { }
     }
 
+    /// <summary>收到远端光标坐标(归一化):更新目标,由 Tick() 平滑跟随</summary>
     public static void Update(float nx, float ny)
     {
         try
@@ -68,16 +74,52 @@ public static class FriendCursor
                 _visible = true;
             }
             float px = nx * Screen.width, py = ny * Screen.height;
-            _dot.position = new Vector3(px, py, 0f);
-            if (_nameText != null)
-                _nameText.transform.position = new Vector3(px + 20, py - 12, 0f);
-            if (_dragGhost != null)
-                _dragGhost.transform.position = new Vector3(px + 20, py + 24, 0f);
+            if (!_hasTarget)
+            {
+                // 首次:直接落位,避免从屏幕原点飞过来
+                _curX = px; _curY = py;
+                _hasTarget = true;
+            }
+            _tgtX = px; _tgtY = py;
+            ApplyPos(_curX, _curY);   // 立即应用一次(屏幕尺寸变化时也能跟上)
         }
         catch (Exception e)
         {
             Plugin.Log.LogWarning($"[Coop] 朋友光标更新异常: {e.Message}");
         }
+    }
+
+    /// <summary>每帧调用(心跳):指数平滑逼近目标位置,帧率无关</summary>
+    public static void Tick()
+    {
+        if (!_visible || !_hasTarget) return;
+        try
+        {
+            float dt = Time.deltaTime;
+            if (dt <= 0f) dt = 0.016f;
+            float dx = _tgtX - _curX, dy = _tgtY - _curY;
+            if (Mathf.Abs(dx) < 0.3f && Mathf.Abs(dy) < 0.3f)
+            {
+                _curX = _tgtX; _curY = _tgtY;
+            }
+            else
+            {
+                float k = 1f - Mathf.Exp(-16f * dt);   // ~16/s 逼近速度
+                _curX += dx * k; _curY += dy * k;
+            }
+            ApplyPos(_curX, _curY);
+        }
+        catch { }
+    }
+
+    private static void ApplyPos(float px, float py)
+    {
+        if (_dot != null)
+            _dot.position = new Vector3(px, py, 0f);
+        if (_nameText != null)
+            _nameText.transform.position = new Vector3(px + 20, py - 12, 0f);
+        if (_dragGhost != null)
+            _dragGhost.transform.position = new Vector3(px + 20, py + 24, 0f);
     }
 
     /// <summary>拖拽状态(队友拖动物品时显示幽灵)</summary>
