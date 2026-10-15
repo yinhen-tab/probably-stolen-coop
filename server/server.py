@@ -27,6 +27,8 @@ HOST = os.environ.get('COOP_HOST', '0.0.0.0')
 PORT = int(os.environ.get('COOP_PORT', '27500'))
 SERVER_VERSION = '0.1.0'
 PROTOCOL_VERSION = pb.V1
+MIN_CLIENT_PROTOCOL = PROTOCOL_VERSION   # 客户端协议低于此值拒连(避免新旧版本混连导致数据错乱)
+MIN_MOD_VERSION = '0.1.0'                # 提示用
 MAX_FRAME = 1 << 20          # 1MB 帧上限,防恶意长度
 TURNS_PER_DAY = 50           # 20min/回合 × 50 = 10h/天(与游戏一致)
 ECHO = os.environ.get('COOP_ECHO', '') == '1'   # 单机自测:把自己的操作可见性消息也发回给自己
@@ -132,14 +134,25 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
     if t == pb.HELLO:
         hello = pb.Hello()
         hello.ParseFromString(env.payload)
+        # 版本校验:客户端协议低于服务端要求 → 明确拒连(不分配 id)
+        if hello.protocol and hello.protocol < MIN_CLIENT_PROTOCOL:
+            await conn.send(pb.ERROR, pb.ErrorMsg(
+                code='PROTOCOL_MISMATCH',
+                message='mod 版本过旧:需要协议 v%d(你的是 v%d),请更新 mod' % (
+                    MIN_CLIENT_PROTOCOL, hello.protocol)).SerializeToString())
+            log('拒绝握手:客户端协议 v%d < 要求 v%d (mod=%s)' % (
+                hello.protocol, MIN_CLIENT_PROTOCOL, hello.mod_version))
+            return
         conn.player_id = next(_next_id)
         conn.player_name = hello.player_name or ('玩家%d' % conn.player_id)
         welcome = pb.Welcome(player_id=conn.player_id,
                              server_protocol=PROTOCOL_VERSION,
-                             server_version=SERVER_VERSION)
+                             server_version=SERVER_VERSION,
+                             min_protocol=MIN_CLIENT_PROTOCOL,
+                             min_mod_version=MIN_MOD_VERSION)
         await conn.send(pb.WELCOME, welcome.SerializeToString())
-        log('玩家 %d(%s) 握手 mod=%s build=%s' % (
-            conn.player_id, conn.player_name, hello.mod_version, hello.game_build))
+        log('玩家 %d(%s) 握手 mod=%s proto=%d build=%s' % (
+            conn.player_id, conn.player_name, hello.mod_version, hello.protocol, hello.game_build))
         return
 
     if conn.player_id == 0:
@@ -176,7 +189,8 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
     if conn.room is None:
         # 展示/高频类消息:未入房时静默丢弃(避免刷屏回错)
         if t in (pb.CURSOR_POS, pb.UI_EVENT, pb.PLAYER_CLICK, pb.DRAG_STATE, pb.GAME_EVENT,
-                 pb.OBJECT_USE, pb.PHONE_SYNC):
+                 pb.OBJECT_USE, pb.PHONE_SYNC, pb.CUSTOMER_LEFT,
+                 pb.SHOP_SNAPSHOT, pb.CLIENT_QUEUE_SYNC, pb.DAY_SYNC):
             return
         await conn.send(pb.ERROR, pb.ErrorMsg(code='NOT_IN_ROOM', message='先创建或加入房间').SerializeToString())
         return
@@ -280,6 +294,18 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
         log('房间 %s 店铺快照: 玩家 %d 资金=%d 第%d天 服务%d项 声望%d项 物品%d种' % (
             room.code, conn.player_id, ss.cash, ss.day,
             len(ss.services), len(ss.reputations), len(ss.items)))
+        return
+
+    if t == pb.CUSTOMER_LEFT:
+        # 顾客成交离店:转发(两端队列实时一致,叫号不会错位)
+        cl = pb.CustomerLeft()
+        cl.ParseFromString(env.payload)
+        if ECHO:
+            room.broadcast(pb.CUSTOMER_LEFT, env.payload)
+        else:
+            room.broadcast(pb.CUSTOMER_LEFT, env.payload, exclude=conn.player_id)
+        log('房间 %s 顾客离店: 玩家 %d %s (%s)' % (
+            room.code, conn.player_id, cl.customer_id, cl.reason))
         return
 
     if t == pb.OBJECT_USE:
