@@ -104,7 +104,7 @@ public static class CoopClient
                 GameBuild = "25382790",
                 Protocol = ModProtocol,
             });
-            Plugin.Log.LogInfo($"[Coop] 已连接 {ServerHost}:{ServerPort}");
+            CoopLog.Info($"[Coop] 已连接 {ServerHost}:{ServerPort}");
         }
         catch (Exception e)
         {
@@ -125,7 +125,7 @@ public static class CoopClient
             {
                 _reconnecting = false;   // 已恢复(由 WELCOME/RoomJoined 完成 rejoin)
                 _reconnectAttempts = 0;
-                Plugin.Log.LogInfo("[Coop] 连接已恢复");
+                CoopLog.Info("[Coop] 连接已恢复");
             }
             return;
         }
@@ -150,7 +150,7 @@ public static class CoopClient
         }
         try
         {
-            Plugin.Log.LogInfo($"[Coop] 重连尝试 #{_reconnectAttempts} → {ServerHost}:{ServerPort}");
+            CoopLog.Info($"[Coop] 重连尝试 #{_reconnectAttempts} → {ServerHost}:{ServerPort}");
             var old = Net;
             Net = null;
             try { old?.Dispose(); } catch { }
@@ -183,7 +183,7 @@ public static class CoopClient
                 PlayerId = w.PlayerId;
                 Handshaked = true;
                 LastErr = "";
-                Plugin.Log.LogInfo($"[Coop] WELCOME id={w.PlayerId} proto={w.ServerProtocol} 服务端最低要求={w.MinProtocol}");
+                CoopLog.Info($"[Coop] WELCOME id={w.PlayerId} proto={w.ServerProtocol} 服务端最低要求={w.MinProtocol}");
                 if (w.MinProtocol > ModProtocol)
                 {
                     LastErr = $"版本不匹配: 服务器要求 mod 协议 v{w.MinProtocol},当前 v{ModProtocol}" +
@@ -196,7 +196,7 @@ public static class CoopClient
                 // 掉线重连:重连成功后自动重新加入原房间
                 if (_rejoinPending && !string.IsNullOrEmpty(RoomCode))
                 {
-                    Plugin.Log.LogInfo($"[Coop] 重连成功,重新加入房间 {RoomCode}");
+                    CoopLog.Info($"[Coop] 重连成功,重新加入房间 {RoomCode}");
                     Net.Send(MsgType.JoinRoom, new JoinRoom { RoomCode = RoomCode });
                 }
                 // 不自动建房/加入:只有玩家在"多人联机"面板操作才会进房间(单机不受影响)
@@ -223,7 +223,7 @@ public static class CoopClient
                     _players[p.PlayerId] = p.PlayerName;
                 }
                 UpdatePeerName();
-                Plugin.Log.LogInfo($"[Coop] 房间 {RoomCode} | {j.State.Players.Count} 人 | 回合 {RoomTurnCount}");
+                CoopLog.Info($"[Coop] 房间 {RoomCode} | {j.State.Players.Count} 人 | 回合 {RoomTurnCount}");
                 if (_rejoinPending)
                 {
                     _rejoinPending = false;
@@ -231,7 +231,7 @@ public static class CoopClient
                     _reconnectAttempts = 0;
                     RequestResync();   // 请求房主重发全量快照,重连期间的状态差异一次对齐
                     RunOnMain(() => CoopHud.Toast($"已重连到房间 {RoomCode}"));
-                    Plugin.Log.LogInfo($"[Coop] 重连完成,已请求状态对齐(房间 {RoomCode})");
+                    CoopLog.Info($"[Coop] 重连完成,已请求状态对齐(房间 {RoomCode})");
                 }
                 break;
             }
@@ -240,7 +240,7 @@ public static class CoopClient
                 var p = PlayerInfo.Parser.ParseFrom(env.Payload);
                 _players[p.PlayerId] = p.PlayerName;
                 UpdatePeerName();
-                Plugin.Log.LogInfo($"[Coop] {p.PlayerName} 进入房间");
+                CoopLog.Info($"[Coop] {p.PlayerName} 进入房间");
                 string nm = p.PlayerName;
                 if (IsHost) CustomerQueueSync.ForceSendNextTick();   // 有人加入 → 重发队列快照
                 if (IsHost) StoreStateSync.ForceSendNextTick(true);   // 房主发权威全量,让新加入者立即对齐
@@ -250,7 +250,7 @@ public static class CoopClient
             case MsgType.PlayerLeft:
             {
                 var p = PlayerInfo.Parser.ParseFrom(env.Payload);
-                Plugin.Log.LogInfo($"[Coop] {p.PlayerName} 离开房间");
+                CoopLog.Info($"[Coop] {p.PlayerName} 离开房间");
                 break;
             }
             case MsgType.TurnAdvanced:
@@ -258,7 +258,7 @@ public static class CoopClient
                 var ta = TurnAdvanced.Parser.ParseFrom(env.Payload);
                 RoomDay = ta.Day;
                 var turn = ta.TurnCount;
-                Plugin.Log.LogInfo($"[Coop] 服务端回合 → {turn}(第 {ta.Day} 天)");
+                CoopLog.Info($"[Coop] 服务端回合 → {turn}(第 {ta.Day} 天)");
                 RunOnMain(() => { RoomTurnCount = turn; ApplyServerTurn(turn); });
                 break;
             }
@@ -317,7 +317,7 @@ public static class CoopClient
                     PeerDayName = string.IsNullOrEmpty(nm) ? "队友" : nm;
                     string who = PeerDayName;
                     int dd = d.Day;
-                    Plugin.Log.LogInfo($"[Coop] 队友天数更新: {who} 第 {dd} 天");
+                    CoopLog.Detail($"[Coop] 队友天数更新: {who} 第 {dd} 天");
                     RunOnMain(() => CoopHud.Toast($"{who} 已进入第 {dd} 天"));
                 }
                 break;
@@ -374,14 +374,14 @@ public static class CoopClient
                         CustomerQueueSync.ForceSendNextTick();
                         StoreStateSync.ForceSendNextTick();
                     });
-                    Plugin.Log.LogInfo("[Coop] 队友请求重新同步 → 已排程重发快照");
+                    CoopLog.Info("[Coop] 队友请求重新同步 → 已排程重发快照");
                 }
                 break;
             }
             case MsgType.ExpeditionSynced:
             {
                 var s = ExpeditionSynced.Parser.ParseFrom(env.Payload);
-                Plugin.Log.LogInfo($"[Coop] 远征战利品已入账: {s.ExpeditionName} 总值 {s.LootTotalValue}");
+                CoopLog.Info($"[Coop] 远征战利品已入账: {s.ExpeditionName} 总值 {s.LootTotalValue}");
                 break;
             }
             case MsgType.Error:
@@ -402,14 +402,14 @@ public static class CoopClient
         try
         {
             entry.StartCoroutine(HeartbeatRoutine().WrapToIl2Cpp());
-            Plugin.Log.LogInfo("[Coop] 主线程心跳已启动(游戏协程驱动)");
-            Plugin.Log.LogInfo(string.IsNullOrEmpty(RoomCode)
+            CoopLog.Info("[Coop] 主线程心跳已启动(游戏协程驱动)");
+            CoopLog.Info(string.IsNullOrEmpty(RoomCode)
                 ? "[Coop] 当前为单机模式(未加入联机房间,同步功能静默)"
                 : $"[Coop] 当前为联机模式(房间 {RoomCode})");
             if (AutoTest)
             {
                 entry.StartCoroutine(AutoTurnRoutine().WrapToIl2Cpp());
-                Plugin.Log.LogInfo("[Coop][测试] 自动回合测试已排程");
+                CoopLog.Info("[Coop][测试] 自动回合测试已排程");
             }
         }
         catch (Exception e)
@@ -436,11 +436,11 @@ public static class CoopClient
             }
             hb++;
             if (hb % 1800 == 0 && !string.IsNullOrEmpty(RoomCode))   // ~30 秒一次心跳确认(仅联机时)
-                Plugin.Log.LogInfo($"[Coop] 心跳活跃(第 {hb} 帧), turnManager={(GameMaster.current?.turnManager != null)}");
+                CoopLog.Detail($"[Coop] 心跳活跃(第 {hb} 帧), turnManager={(GameMaster.current?.turnManager != null)}");
             if (!turnSeen && GameMaster.current?.turnManager != null)
             {
                 turnSeen = true;
-                Plugin.Log.LogInfo("[Coop] ★ TurnManager 出现了!");
+                CoopLog.Info("[Coop] ★ TurnManager 出现了!");
             }
 
             // ---- 光标采集上报(操作可见性,~20Hz;静止时降频) ----
@@ -480,7 +480,7 @@ public static class CoopClient
                             _lastSentDay = day;
                             MyDay = day;
                             Net.Send(MsgType.DaySync, new DaySync { PlayerId = PlayerId, Day = day });
-                            Plugin.Log.LogInfo($"[Coop] 本地上报天数: 第 {day} 天");
+                            CoopLog.Detail($"[Coop] 本地上报天数: 第 {day} 天");
                         }
                     }
                 }
@@ -540,7 +540,7 @@ public static class CoopClient
             var tut = TutorialUIManager.Instance;
             if (tut != null)
             {
-                Plugin.Log.LogInfo("[Coop][测试] 调 TutorialUIManager.CloseAllTutorial() 关教程");
+                CoopLog.Info("[Coop][测试] 调 TutorialUIManager.CloseAllTutorial() 关教程");
                 tut.CloseAllTutorial();
             }
             else
@@ -560,12 +560,12 @@ public static class CoopClient
                 DumpStoreState("BeginDay前");
                 if (ps.CanStartDay())
                 {
-                    Plugin.Log.LogInfo("[Coop][测试] CanStartDay=true → 调 BeginDay()");
+                    CoopLog.Info("[Coop][测试] CanStartDay=true → 调 BeginDay()");
                     ps.BeginDay();
                 }
                 else
                 {
-                    Plugin.Log.LogInfo("[Coop][测试] CanStartDay=false,跳过 BeginDay");
+                    CoopLog.Info("[Coop][测试] CanStartDay=false,跳过 BeginDay");
                 }
             }
         }
@@ -577,7 +577,7 @@ public static class CoopClient
         {
             var ps = PlayerStore.Instance;
             ps?.OpenShutter();
-            Plugin.Log.LogInfo("[Coop][测试] 已调 PlayerStore.OpenShutter()");
+            CoopLog.Info("[Coop][测试] 已调 PlayerStore.OpenShutter()");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop][测试] 开门异常: {e.Message}"); }
         yield return new WaitForSeconds(2f);
@@ -586,7 +586,7 @@ public static class CoopClient
             var ssb = StoreShutterButton.Instance;
             if (ssb != null)
             {
-                Plugin.Log.LogInfo("[Coop][测试] 调 StoreShutterButton.Instance.OpenShutter()");
+                CoopLog.Info("[Coop][测试] 调 StoreShutterButton.Instance.OpenShutter()");
                 ssb.OpenShutter();
             }
             else
@@ -608,7 +608,7 @@ public static class CoopClient
             var scm = PlayerStore.Instance?.storeClientManager;
             if (scm != null)
             {
-                Plugin.Log.LogInfo("[Coop][测试] 调 StoreClientManager.OnNewDay() 触发顾客调度");
+                CoopLog.Info("[Coop][测试] 调 StoreClientManager.OnNewDay() 触发顾客调度");
                 scm.OnNewDay();
             }
             else
@@ -626,7 +626,7 @@ public static class CoopClient
             try { stack = scm?.clientStack?.Count ?? -1; } catch { stack = -2; }
             if (scm != null && stack <= 0)
             {
-                Plugin.Log.LogInfo("[Coop][测试] 顾客栈为空,补调 GenerateClient()");
+                CoopLog.Info("[Coop][测试] 顾客栈为空,补调 GenerateClient()");
                 scm.GenerateClient();
             }
         }
@@ -640,7 +640,7 @@ public static class CoopClient
             var ps = PlayerStore.Instance;
             if (ps != null)
             {
-                Plugin.Log.LogInfo("[Coop][测试] 调 TryCallNextClient()(栈内已有顾客)");
+                CoopLog.Info("[Coop][测试] 调 TryCallNextClient()(栈内已有顾客)");
                 ps.TryCallNextClient();
             }
         }
@@ -652,19 +652,19 @@ public static class CoopClient
         yield return new WaitForSeconds(6f);
         var gm = GameMaster.current;
         var tm = gm?.turnManager;
-        Plugin.Log.LogInfo($"[Coop][测试] {23}f 状态: turnManager={(tm != null)}");
+        CoopLog.Info($"[Coop][测试] {23}f 状态: turnManager={(tm != null)}");
         if (tm != null)
         {
-            Plugin.Log.LogInfo($"[Coop][测试] 开始 NextTurn 测试 (turns={tm.turns})");
+            CoopLog.Info($"[Coop][测试] 开始 NextTurn 测试 (turns={tm.turns})");
             tm.NextTurn();
             yield return new WaitForSeconds(4f);
-            Plugin.Log.LogInfo($"[Coop][测试] 第 1 次 NextTurn 后: turns={tm.turns}, 房间回合={RoomTurnCount}");
+            CoopLog.Info($"[Coop][测试] 第 1 次 NextTurn 后: turns={tm.turns}, 房间回合={RoomTurnCount}");
         }
 
         // 快照 2:最终(不再调结束一天,保持白天状态)
         yield return new WaitForSeconds(15f);
         DumpStoreState("最终");
-        Plugin.Log.LogInfo("[Coop][测试] 全部测试完成(保持白天,未结束一天)");
+        CoopLog.Info("[Coop][测试] 全部测试完成(保持白天,未结束一天)");
     }
 
     /// <summary>顾客管理器状态快照</summary>
@@ -682,7 +682,7 @@ public static class CoopClient
             try { stack = scm.clientStack?.Count ?? -1; } catch { stack = -2; }
             int normal = -1;
             try { normal = scm.GetNormalCustomerCount(); } catch { normal = -2; }
-            Plugin.Log.LogInfo($"[Coop][顾客·{tag}] 顾客栈={stack} 普通顾客数={normal}");
+            CoopLog.Info($"[Coop][顾客·{tag}] 顾客栈={stack} 普通顾客数={normal}");
         }
         catch (Exception e)
         {
@@ -704,7 +704,7 @@ public static class CoopClient
             var q = ps.futurStoreClientDayQueue;
             int qc = -1;
             try { qc = q != null ? q.Count : -2; } catch { qc = -3; }
-            Plugin.Log.LogInfo($"[Coop][状态·{tag}] 现金={ps.playerCash} 电源={ps.isPowerOn} 租金日={ps.GetRentDayCounter()} CanStartDay={ps.CanStartDay()} 顾客队列={qc} | 锁[All={ps.lockAllFlag} Shutter={ps.lockShutterButtonFlag} NextBell={ps.lockNextBellFlag} ClientClick={ps.lockClientClickFlag} Physical={ps.lockStorePhysicalFlag} Inv={ps.lockAllInventoryFlag}]");
+            CoopLog.Info($"[Coop][状态·{tag}] 现金={ps.playerCash} 电源={ps.isPowerOn} 租金日={ps.GetRentDayCounter()} CanStartDay={ps.CanStartDay()} 顾客队列={qc} | 锁[All={ps.lockAllFlag} Shutter={ps.lockShutterButtonFlag} NextBell={ps.lockNextBellFlag} ClientClick={ps.lockClientClickFlag} Physical={ps.lockStorePhysicalFlag} Inv={ps.lockAllInventoryFlag}]");
         }
         catch (Exception e)
         {
@@ -728,7 +728,7 @@ public static class CoopClient
     public static void OnLocalNextTurn()
     {
         if (Net == null || !Handshaked || _applyingServer) return;
-        Plugin.Log.LogInfo("[Coop] 本地推进触发 → 上报服务端意图");
+        CoopLog.Info("[Coop] 本地推进触发 → 上报服务端意图");
         Net.Send(MsgType.AdvanceTurn, new AdvanceTurn());
     }
 
@@ -744,7 +744,7 @@ public static class CoopClient
         _applyingServer = true;
         try
         {
-            Plugin.Log.LogInfo($"[Coop] 服务端驱动本地推进 → turn {turn}");
+            CoopLog.Info($"[Coop] 服务端驱动本地推进 → turn {turn}");
             tm.NextTurn();
         }
         finally
@@ -762,7 +762,7 @@ public static class CoopClient
         try
         {
             Net.Send(MsgType.UiEvent, new UiEvent { WindowPath = path, WindowTitle = title, Open = open });
-            Plugin.Log.LogInfo($"[Coop] 本地上报UI: {(open ? "打开" : "关闭")} {title} [{path}]");
+            CoopLog.Detail($"[Coop] 本地上报UI: {(open ? "打开" : "关闭")} {title} [{path}]");
         }
         catch (Exception e)
         {
@@ -777,7 +777,7 @@ public static class CoopClient
         try
         {
             Net.Send(MsgType.PhoneSync, new Coop.PhoneSync { PlayerId = PlayerId, Kind = kind, Number = number });
-            Plugin.Log.LogInfo($"[Coop] 本地上报电话: {kind}{(number != 0 ? " " + number : "")}");
+            CoopLog.Detail($"[Coop] 本地上报电话: {kind}{(number != 0 ? " " + number : "")}");
         }
         catch (Exception e)
         {
@@ -812,7 +812,7 @@ public static class CoopClient
         try
         {
             Net.Send(MsgType.ResyncRequest, new Coop.ResyncRequest { PlayerId = PlayerId });
-            Plugin.Log.LogInfo("[Coop] 已请求重新同步(重连对齐)");
+            CoopLog.Info("[Coop] 已请求重新同步(重连对齐)");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 请求重同步失败: {e.Message}"); }
     }
@@ -832,7 +832,7 @@ public static class CoopClient
             }
             if (ev.Open) win.Show();
             else win.Hide();
-            Plugin.Log.LogInfo($"[Coop] 远端UI已执行: {(ev.Open ? "打开" : "关闭")} {ev.WindowTitle}");
+            CoopLog.Detail($"[Coop] 远端UI已执行: {(ev.Open ? "打开" : "关闭")} {ev.WindowTitle}");
         }
         catch (Exception e)
         {
@@ -895,7 +895,7 @@ public static class CoopClient
                     catch { }
                 }
             }
-            Plugin.Log.LogInfo($"[Coop] 窗口扫描: scanned={scanned} added={added} cache={_winCache.Count}");
+            CoopLog.Detail($"[Coop] 窗口扫描: scanned={scanned} added={added} cache={_winCache.Count}");
         }
         catch (Exception e)
         {
@@ -913,7 +913,7 @@ public static class CoopClient
         if (!string.IsNullOrEmpty(RoomCode)) return;
         IsHost = true;   // 创建者=房主(顾客队列权威)
         Net.Send(MsgType.CreateRoom);
-        Plugin.Log.LogInfo("[Coop] 请求创建房间…");
+        CoopLog.Info("[Coop] 请求创建房间…");
     }
 
     /// <summary>UI:加入房间</summary>
@@ -923,7 +923,7 @@ public static class CoopClient
         if (!string.IsNullOrEmpty(RoomCode)) return;
         IsHost = false;   // 加入者:顾客队列跟随房主
         Net.Send(MsgType.JoinRoom, new JoinRoom { RoomCode = code });
-        Plugin.Log.LogInfo($"[Coop] 请求加入房间 {code}…");
+        CoopLog.Info($"[Coop] 请求加入房间 {code}…");
     }
 
     public static string GetStatusLine()
@@ -959,7 +959,7 @@ public static class CoopClient
             if (kv.Key != PlayerId)
             {
                 FriendCursor.SetPeerName(kv.Value);
-                Plugin.Log.LogInfo($"[Coop] 队友= {kv.Value}");
+                CoopLog.Info($"[Coop] 队友= {kv.Value}");
                 return;
             }
         }
@@ -974,7 +974,7 @@ public static class CoopClient
         try
         {
             if (!Handshaked) return;
-            Plugin.Log.LogInfo($"[Coop][测试] 自动加入房间 {AutoJoinCode}");
+            CoopLog.Info($"[Coop][测试] 自动加入房间 {AutoJoinCode}");
             IsHost = false;
             Net.Send(MsgType.JoinRoom, new JoinRoom { RoomCode = AutoJoinCode.Trim().ToUpper() });
         }
@@ -1001,7 +1001,7 @@ public static class CoopClient
             if (m == null) return;
             CoopUI.MarkLoadUiShown();
             m.OnLoadGameClick();
-            Plugin.Log.LogInfo("[Coop][测试] 已自动打开存档界面");
+            CoopLog.Info("[Coop][测试] 已自动打开存档界面");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop][测试] 自动打开存档界面失败: {e.Message}"); }
     }
@@ -1014,7 +1014,7 @@ public static class CoopClient
         try
         {
             Net.Send(MsgType.GameEvent, new GameEvent { Kind = kind });
-            Plugin.Log.LogInfo($"[Coop] 本地上报游戏事件: {kind}");
+            CoopLog.Detail($"[Coop] 本地上报游戏事件: {kind}");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 事件上报失败: {e.Message}"); }
     }
@@ -1058,7 +1058,7 @@ public static class CoopClient
                     Plugin.Log.LogWarning($"[Coop] 未知游戏事件: {ev.Kind}");
                     return;
             }
-            Plugin.Log.LogInfo($"[Coop] 远端游戏事件已执行: {ev.Kind}");
+            CoopLog.Detail($"[Coop] 远端游戏事件已执行: {ev.Kind}");
         }
         catch (Exception e)
         {
@@ -1078,7 +1078,7 @@ public static class CoopClient
         try
         {
             menu.StartCoroutine(BootRoutine(menu).WrapToIl2Cpp());
-            Plugin.Log.LogInfo("[Coop][测试] 自动开局协程已启动");
+            CoopLog.Info("[Coop][测试] 自动开局协程已启动");
         }
         catch (Exception e)
         {
@@ -1089,11 +1089,11 @@ public static class CoopClient
     static IEnumerator BootRoutine(MainMenuUIController menu)
     {
         yield return new WaitForSeconds(1.5f);
-        Plugin.Log.LogInfo("[Coop][测试] 自动开局 1/4: OnNewGameClick");
+        CoopLog.Info("[Coop][测试] 自动开局 1/4: OnNewGameClick");
         menu.OnNewGameClick();
         yield return new WaitForSeconds(1.5f);
 
-        Plugin.Log.LogInfo("[Coop][测试] 自动开局 2/4: OnWaterMerchantClick(选职业)");
+        CoopLog.Info("[Coop][测试] 自动开局 2/4: OnWaterMerchantClick(选职业)");
         menu.OnWaterMerchantClick();
         yield return new WaitForSeconds(1.0f);
 
@@ -1111,7 +1111,7 @@ public static class CoopClient
                 if (!ngd.endlessMode) menu.OnEndlessToggled();   // 读后修:确保 true
                 if (!ngd.skipIntro) menu.OnSkipIntroToggled();   // 读后修:确保 true
                 ngd.disableTutorialHint = true;
-                Plugin.Log.LogInfo($"[Coop][测试] 开关校验: skipIntro={ngd.skipIntro} endlessMode={ngd.endlessMode} startType={ngd.startType}");
+                CoopLog.Info($"[Coop][测试] 开关校验: skipIntro={ngd.skipIntro} endlessMode={ngd.endlessMode} startType={ngd.startType}");
             }
             else
             {
@@ -1124,7 +1124,7 @@ public static class CoopClient
         }
 
         yield return new WaitForSeconds(1.5f);
-        Plugin.Log.LogInfo("[Coop][测试] 自动开局 3/5: 触发开始按钮(onClick.Invoke) → 应打开初始特性界面");
+        CoopLog.Info("[Coop][测试] 自动开局 3/5: 触发开始按钮(onClick.Invoke) → 应打开初始特性界面");
         try
         {
             if (menu.startGameButton != null)
@@ -1145,7 +1145,7 @@ public static class CoopClient
 
         // 4/5: 完成初始特性选择(这一步在真实流程里由玩家点"开始游戏"按钮完成)
         yield return new WaitForSeconds(2.5f);
-        Plugin.Log.LogInfo("[Coop][测试] 自动开局 4/5: OnPerkFinishedClick() 完成特性→进游戏");
+        CoopLog.Info("[Coop][测试] 自动开局 4/5: OnPerkFinishedClick() 完成特性→进游戏");
         try
         {
             menu.OnPerkFinishedClick();
@@ -1166,7 +1166,7 @@ public static class CoopClient
             }
             else
             {
-                Plugin.Log.LogInfo("[Coop][测试] 已进入游戏场景(EmporiumEntry 存在)");
+                CoopLog.Info("[Coop][测试] 已进入游戏场景(EmporiumEntry 存在)");
             }
         }
         catch (Exception e)
@@ -1180,7 +1180,7 @@ public static class CoopClient
     {
         var gm = GameMaster.current;
         var tm = gm?.turnManager;
-        Plugin.Log.LogInfo($"[Coop] 世界状态[{tag}]: GameMaster={(gm != null)} turnManager={(tm != null)}" + (tm != null ? $" turns={tm.turns}" : ""));
+        CoopLog.Info($"[Coop] 世界状态[{tag}]: GameMaster={(gm != null)} turnManager={(tm != null)}" + (tm != null ? $" turns={tm.turns}" : ""));
     }
 
     // ---------- 配置 ----------
@@ -1195,6 +1195,8 @@ public static class CoopClient
         SyncAudio = config.Bind("联机", "同步音效", true, "true=队友触发的音效在你这边也回放(音画一致)").Value;
         SyncBehavior = config.Bind("联机", "同步顾客行为", true, "true=顾客进店/挑选/成交事件同步,保证同一顾客两端结果一致").Value;
         PhoneEffectOn = config.Bind("联机", "通话效果对对方生效", false, "false(默认)=你打电话时队友只是观看,不产生任何效果;true=队友端也真实生效").Value;
+        var logLv = config.Bind("联机", "日志详细程度", "正常", "安静=只留警告与错误; 正常=连接/房间/存档/错误+同步结果; 详细=再含逐条流水(排查问题用)").Value;
+        CoopLog.Level = logLv == "安静" ? CoopLogLv.Quiet : (logLv == "详细" ? CoopLogLv.Verbose : CoopLogLv.Normal);
         AutoTest = config.Bind("测试", "自动开局与回合测试", false, "诊断用:自动从主菜单开局并推进回合(正式联机请保持 false)").Value;
         // 自动加入码:优先环境变量,其次同目录测试文件 coop_test.txt(内容=房间码)
         try
@@ -1214,6 +1216,6 @@ public static class CoopClient
             }
         }
         catch { }
-        Plugin.Log.LogInfo($"[Coop] 配置载入: 自动加入码={(string.IsNullOrEmpty(AutoJoinCode) ? "(无)" : AutoJoinCode)}");
+        CoopLog.Info($"[Coop] 配置载入: 自动加入码={(string.IsNullOrEmpty(AutoJoinCode) ? "(无)" : AutoJoinCode)}");
     }
 }
