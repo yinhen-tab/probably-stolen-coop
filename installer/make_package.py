@@ -80,6 +80,11 @@ CFG_TEMPLATE = '''## Settings file was created by plugin ProbablyStolenCoop v0.1
 # Default value: 30
 光标发送频率 = 30
 
+## true(默认)=加入房间后直接载入房主的存档(世界状态完全一致);false=各自用自己的存档
+# Setting type: Boolean
+# Default value: true
+使用房主的存档 = true
+
 [测试]
 
 ## 诊断用:自动从主菜单开局并推进回合(正式联机请保持 false)
