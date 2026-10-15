@@ -86,6 +86,11 @@ public static class ObjectUseSync
                 }
                 return;
             }
+            if (msg.Kind == "wnd_open" || msg.Kind == "wnd_close")
+            {
+                ApplyRemoteItemWindow(msg);
+                return;
+            }
 
             string cn = Names.TryGetValue(msg.Kind, out var c) ? c : msg.Kind;
             CoopLog.Detail($"[Coop] 队友使用了: {cn}");
@@ -327,11 +332,129 @@ public static class ObjectUseSync
         finally { ApplyingContainer = false; WindowSync.ApplyingRemote = prevWin; }
     }
 
-    /// <summary>心跳:高亮圈淡出(圈已取消,保留调用以兼容)</summary>
+    /// <summary>
+    /// 心跳:高亮圈淡出(圈已取消,保留调用以兼容)
+    /// </summary>
     public static void Tick()
     {
         try { PeerMarker.Tick(_markUntil); }
         catch { }
+    }
+
+    // ================= "按物品"的独立窗口(录音机对话回顾 / 便签手账) =================
+
+    private static GameItem _lastLogItem;        // 本地最后打开的录音机物品(关闭时要上报)
+    private static GameItem _lastHandnoteItem;
+
+    public static void RememberItem(string which, GameItem item)
+    {
+        if (which == "log") _lastLogItem = item;
+        else if (which == "handnote") _lastHandnoteItem = item;
+    }
+
+    public static GameItem LastItem(string which)
+        => which == "log" ? _lastLogItem : _lastHandnoteItem;
+
+    /// <summary>本地打开/关闭了某个"按物品"的独立窗口 → 上报</summary>
+    public static void ReportItemWindow(bool open, string which, GameItem item)
+    {
+        try
+        {
+            if (ApplyingContainer) return;
+            if (item == null) return;
+            if (CoopClient.Net == null || !CoopClient.Handshaked) return;
+            if (string.IsNullOrEmpty(CoopClient.RoomCode)) return;
+            string id = item.identifier ?? "";
+            if (string.IsNullOrEmpty(id)) return;
+            CoopClient.Net.Send(MsgType.ObjectUse, new Coop.ObjectUse
+            {
+                PlayerId = CoopClient.PlayerId,
+                Kind = open ? "wnd_open" : "wnd_close",
+                ItemId = id,
+                Arg = which ?? "",
+            });
+            CoopLog.Info($"[Coop] 本地{(open ? "打开" : "关闭")}窗口: {which} ({id})");
+        }
+        catch (Exception e) { CoopLog.Warn($"[Coop] 窗口上报异常: {e.Message}"); }
+    }
+
+    /// <summary>接收方:打开/关闭同一个"按物品"窗口(内容由本端自己那份物品提供,天然一致)</summary>
+    static void ApplyRemoteItemWindow(Coop.ObjectUse msg)
+    {
+        try
+        {
+            var item = ItemMoveSync.FindItem(0, msg.ItemId);
+            if (item == null) { CoopLog.Detail($"[Coop] 窗口同步: 本地没有物品 {msg.ItemId}(跳过)"); return; }
+            bool open = msg.Kind == "wnd_open";
+            bool prevWin = WindowSync.ApplyingRemote;
+            ApplyingContainer = true;
+            WindowSync.ApplyingRemote = true;      // 抑制窗口同步回环
+            try
+            {
+                if (msg.Arg == "log")
+                {
+                    var ui = LogUIManager.Instance;
+                    if (ui == null) return;
+                    if (open) ui.OpenUI(item); else ui.CloseUI();
+                    CoopLog.Info($"[Coop] 已{(open ? "打开" : "关闭")}队友的录音机窗口");
+                }
+                else if (msg.Arg == "handnote")
+                {
+                    var ui = HandnoteUIManager.Instance;
+                    if (ui == null) return;
+                    if (open) ui.OpenPanel(item); else ui.ClosePanel();
+                    CoopLog.Info($"[Coop] 已{(open ? "打开" : "关闭")}队友的便签窗口");
+                }
+            }
+            finally
+            {
+                WindowSync.ApplyingRemote = prevWin;
+                ApplyingContainer = false;
+            }
+        }
+        catch (Exception e) { CoopLog.Warn($"[Coop] 窗口同步异常: {e.Message}"); }
+    }
+}
+
+// ---- 钩子:录音机窗口(回顾对话) ----
+
+[HarmonyPatch(typeof(LogUIManager), nameof(LogUIManager.OpenUI))]
+public static class LogUiOpenPatch
+{
+    public static void Postfix(GameItem gameItem)
+    {
+        ObjectUseSync.RememberItem("log", gameItem);
+        ObjectUseSync.ReportItemWindow(true, "log", gameItem);
+    }
+}
+
+[HarmonyPatch(typeof(LogUIManager), nameof(LogUIManager.CloseUI))]
+public static class LogUiClosePatch
+{
+    public static void Postfix()
+    {
+        ObjectUseSync.ReportItemWindow(false, "log", ObjectUseSync.LastItem("log"));
+    }
+}
+
+// ---- 钩子:便签/手账窗口 ----
+
+[HarmonyPatch(typeof(HandnoteUIManager), nameof(HandnoteUIManager.OpenPanel))]
+public static class HandnoteOpenPatch
+{
+    public static void Postfix(GameItem gameItem)
+    {
+        ObjectUseSync.RememberItem("handnote", gameItem);
+        ObjectUseSync.ReportItemWindow(true, "handnote", gameItem);
+    }
+}
+
+[HarmonyPatch(typeof(HandnoteUIManager), nameof(HandnoteUIManager.ClosePanel))]
+public static class HandnoteClosePatch
+{
+    public static void Postfix()
+    {
+        ObjectUseSync.ReportItemWindow(false, "handnote", ObjectUseSync.LastItem("handnote"));
     }
 }
 
