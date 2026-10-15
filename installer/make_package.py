@@ -55,6 +55,31 @@ CFG_TEMPLATE = '''## Settings file was created by plugin ProbablyStolenCoop v0.1
 # Default value: 玩家
 玩家昵称 = 玩家
 
+## true=队友触发的音效在你这边也回放(音画一致)
+# Setting type: Boolean
+# Default value: true
+同步音效 = true
+
+## true=顾客进店/挑选/成交事件同步,保证同一顾客两端结果一致
+# Setting type: Boolean
+# Default value: true
+同步顾客行为 = true
+
+## false(默认)=你打电话时队友只是观看,不产生任何效果;true=队友端也真实生效
+# Setting type: Boolean
+# Default value: false
+通话效果对对方生效 = false
+
+## 安静=只留警告与错误; 正常=连接/房间/存档/错误+同步结果; 详细=再含逐条流水(排查问题用)
+# Setting type: String
+# Default value: 正常
+日志详细程度 = 正常
+
+## 每秒上报多少次队友光标(5~60;默认 30 已足够,配合插值观感平滑;调高只增加带宽)
+# Setting type: Int32
+# Default value: 30
+光标发送频率 = 30
+
 [测试]
 
 ## 诊断用:自动从主菜单开局并推进回合(正式联机请保持 false)
