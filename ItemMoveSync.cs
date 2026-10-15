@@ -34,21 +34,21 @@ public static class ItemMoveSync
 
     // ================= 工具 =================
 
-    static GridShape Placed(GameItem it)
+    public static GridShape Placed(GameItem it)
     {
         try { var m = it.modifiedShape; if (m != null) return m; } catch { }
         try { return it.shape; } catch { }
         return null;
     }
 
-    static GameGridInventory GridOf(GameItem it)
+    public static GameGridInventory GridOf(GameItem it)
     {
         try { return it.parentInventory != null ? it.parentInventory.TryCast<GameGridInventory>() : null; }
         catch { return null; }
     }
 
     /// <summary>格子→像素中心(把模型的网格坐标换算成渲染坐标)</summary>
-    static Vector2 ToPixel(GameGridInventory inv, GridShape sh, int minX, int minY)
+    public static Vector2 ToPixel(GameGridInventory inv, GridShape sh, int minX, int minY)
     {
         float cw = 16f, ch = 16f;
         try
@@ -82,6 +82,14 @@ public static class ItemMoveSync
     static Il2CppSystem.Collections.Generic.List<GameItem> AllItems(PlayerStore ps)
     {
         try { return ps.FindAllItem(true); } catch { return null; }
+    }
+
+    /// <summary>对外:按 uniqueId(兜底 identifier)找物品(供拖拽跟随用)</summary>
+    public static GameItem FindItem(int uid, string ident = "")
+    {
+        var ps = PlayerStore.Instance;
+        if (ps == null) return null;
+        return FindByUid(AllItems(ps), uid, ident);
     }
 
     static GameItem FindByUid(Il2CppSystem.Collections.Generic.List<GameItem> items, int uid, string ident)
