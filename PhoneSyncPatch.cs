@@ -16,14 +16,14 @@ public static class PhoneSync
     public static bool ApplyingRemote;
 
     /// <summary>本地电话操作上报</summary>
-    public static void Report(string kind, long number = 0)
+    public static void Report(string kind, long number = 0, string arg = "", int index = -1)
     {
         try
         {
             if (ApplyingRemote) return;
             if (CoopClient.Net == null || !CoopClient.Handshaked) return;
             if (string.IsNullOrEmpty(CoopClient.RoomCode)) return;
-            CoopClient.SendPhoneSync(kind, number);
+            CoopClient.SendPhoneSync(kind, number, arg, index);
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 电话上报异常: {e.Message}"); }
     }
@@ -45,7 +45,7 @@ public static class PhoneSync
                 {
                     case "open":
                         ui.OpenUI();
-                        Plugin.Log.LogInfo("[Coop] 队友打开了电话");
+                        CoopLog.Info("[Coop] 队友打开了电话");
                         break;
                     case "close":
                         ui.CloseUI();
@@ -57,12 +57,43 @@ public static class PhoneSync
                         if (ui.phoneBookUIManager != null) ui.phoneBookUIManager.CloseUI();
                         break;
                     case "call":
-                        Plugin.Log.LogInfo($"[Coop] 队友正在拨打 {m.Number}" +
+                        CoopLog.Info($"[Coop] 队友正在拨打 {m.Number}" +
                             (CoopClient.PhoneEffectOn ? "" : "(观看模式:不产生效果)"));
                         ui.HandleCall(m.Number);
                         break;
                     case "hangup":
                         ui.StopCall();
+                        break;
+
+                    // ---- 通话对话面板(打电话给联系人后弹出的那个面板) ----
+                    case "dlg_start":
+                    {
+                        var dlgUi = DialoguePhoneUIManager.Instance;
+                        if (dlgUi == null) { CoopLog.Warn("[Coop] 对话面板实例为空,无法镜像"); break; }
+                        if (dlgUi.isConversationActiveFlag != 0)
+                        {
+                            CoopLog.Info($"[Coop] 队友打开了对话面板({m.Arg}),本端已在对话中,跳过");
+                            break;
+                        }
+                        // 走本地同一条通话流程,让面板由游戏自己打开(数据同源)
+                        CoopLog.Info($"[Coop] 队友打开了对话面板({m.Arg}) → 本地触发同流程");
+                        try { ui.StartCalling(); }
+                        catch (Exception e) { CoopLog.Warn($"[Coop] 本地触发对话失败: {e.Message}"); }
+                        break;
+                    }
+                    case "dlg_end":
+                        if (DialoguePhoneUIManager.Instance != null)
+                        {
+                            DialoguePhoneUIManager.Instance.EndConversation();
+                            CoopLog.Info("[Coop] 队友结束了通话对话");
+                        }
+                        break;
+                    case "dlg_choice":
+                        if (DialoguePhoneUIManager.Instance != null && m.Index >= 0)
+                        {
+                            DialoguePhoneUIManager.Instance.SelectChoice(m.Index);
+                            CoopLog.Info($"[Coop] 队友选择了对话选项 {m.Index}(本端同步选择)");
+                        }
                         break;
                 }
             }
@@ -116,4 +147,46 @@ public static class PhoneCallPatch
 public static class PhoneStopCallPatch
 {
     public static void Postfix() { PhoneSync.Report("hangup"); }
+}
+
+// ---- 钩子:通话对话面板(打电话给联系人后弹出的面板) ----
+
+[HarmonyPatch(typeof(DialoguePhoneUIManager), nameof(DialoguePhoneUIManager.StartDialogue))]
+public static class PhoneDialogStartPatch
+{
+    public static void Postfix(Dialogue dialogue)
+    {
+        string tag = "";
+        try
+        {
+            tag = dialogue?.title ?? "";
+            if (string.IsNullOrEmpty(tag)) tag = (dialogue?.plainText ?? "");
+            if (tag != null && tag.Length > 30) tag = tag.Substring(0, 30);
+        }
+        catch { }
+        CoopLog.Info($"[Coop] 本地打开通话对话面板: {tag}");
+        PhoneSync.Report("dlg_start", 0, tag ?? "");
+    }
+}
+
+[HarmonyPatch(typeof(DialoguePhoneUIManager), nameof(DialoguePhoneUIManager.EndConversation))]
+public static class PhoneDialogEndPatch
+{
+    public static void Postfix() { PhoneSync.Report("dlg_end"); }
+}
+
+[HarmonyPatch(typeof(DialoguePhoneUIManager), nameof(DialoguePhoneUIManager.InterruptDialog))]
+public static class PhoneDialogInterruptPatch
+{
+    public static void Postfix() { PhoneSync.Report("dlg_end"); }
+}
+
+[HarmonyPatch(typeof(DialoguePhoneUIManager), nameof(DialoguePhoneUIManager.SelectChoice))]
+public static class PhoneDialogChoicePatch
+{
+    public static void Postfix(int index)
+    {
+        CoopLog.Info($"[Coop] 本地选择了对话选项 {index}");
+        PhoneSync.Report("dlg_choice", 0, "", index);
+    }
 }
