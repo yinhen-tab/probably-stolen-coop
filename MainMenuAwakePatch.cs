@@ -10,6 +10,7 @@ public static class MainMenuAwakePatch
     public static void Postfix(MainMenuUIController __instance)
     {
         Plugin.Log.LogInfo("[Coop] 主菜单已就绪(单机零打扰:点击\"多人联机\"后才连接服务器)");
+        SaveGuard.TryRestore();   // 存档保护:上次联机若未还原(含崩溃/被杀进程),在这里兜底还原
         CoopClient.AutoConnectIfConfigured();   // 测试:配置了自动加入码则立刻连接
         CoopUI.AttachToMainMenu(__instance);    // 克隆原生样式按钮,插入主菜单按钮列
         CoopUI.StartMainMenuTick(__instance);   // 主菜单阶段:面板刷新 + 点击特效
