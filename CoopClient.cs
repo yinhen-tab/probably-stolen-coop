@@ -173,6 +173,34 @@ public static class CoopClient
         _mainQueue.Enqueue(action);
     }
 
+    // ---------- 延迟任务(主线程,心跳里派发) ----------
+
+    private static readonly System.Collections.Generic.List<(float at, Action act)> _delayed = new();
+
+    /// <summary>主线程延迟 sec 秒后执行(用于等 UI 打开完再点按钮)</summary>
+    public static void RunOnMainAfter(float sec, Action act)
+    {
+        if (act == null) return;
+        lock (_delayed) _delayed.Add((Time.unscaledTime + Math.Max(0f, sec), act));
+    }
+
+    static void PumpDelayed()
+    {
+        lock (_delayed)
+        {
+            if (_delayed.Count == 0) return;
+            float now = Time.unscaledTime;
+            for (int i = _delayed.Count - 1; i >= 0; i--)
+            {
+                if (now < _delayed[i].at) continue;
+                var act = _delayed[i].act;
+                _delayed.RemoveAt(i);
+                try { act(); }
+                catch (Exception e) { CoopLog.Warn($"[Coop] 延迟任务异常: {e.Message}"); }
+            }
+        }
+    }
+
     // ---------- 网络线程:消息处理 ----------
 
     static void Handle(Envelope env)
@@ -218,6 +246,7 @@ public static class CoopClient
                     // 进房即发店铺快照:房主发"权威全量"做初始对齐;队友发普通快照建立增量基准
                     StoreStateSync.ForceSendNextTick(true);
                     SaveGuard.BeginSession();   // 存档保护:以加入者身份进房时备份本地存档
+                    if (!IsHost) SendSaveRequest();   // 队友:直接要房主的档(不再选自己的档)
                 }
                 for (int i = 0; i < j.State.Players.Count; i++)
                 {
@@ -246,6 +275,7 @@ public static class CoopClient
                 string nm = p.PlayerName;
                 if (IsHost) CustomerQueueSync.ForceSendNextTick();   // 有人加入 → 重发队列快照
                 if (IsHost) StoreStateSync.ForceSendNextTick(true);   // 房主发权威全量,让新加入者立即对齐
+                if (IsHost) RunOnMain(() => SaveTransfer.HostUpload());   // 房主把当前存档发给新加入的队友
                 RunOnMain(() => CoopHud.Toast($"{nm} 加入了房间"));
                 break;
             }
@@ -380,6 +410,24 @@ public static class CoopClient
                 }
                 break;
             }
+            case MsgType.SaveRequest:
+            {
+                // 队友要房主的存档:房主落盘并上传
+                if (IsHost) RunOnMain(() => SaveTransfer.HostUpload());
+                break;
+            }
+            case MsgType.SaveMeta:
+            {
+                var sm = Coop.SaveMeta.Parser.ParseFrom(env.Payload);
+                RunOnMain(() => SaveTransfer.OnMeta(sm));
+                break;
+            }
+            case MsgType.SaveChunk:
+            {
+                var sc = Coop.SaveChunk.Parser.ParseFrom(env.Payload);
+                RunOnMain(() => SaveTransfer.OnChunk(sc));
+                break;
+            }
             case MsgType.ExpeditionSynced:
             {
                 var s = ExpeditionSynced.Parser.ParseFrom(env.Payload);
@@ -504,6 +552,9 @@ public static class CoopClient
 
             // ---- 队友光标平滑插值 ----
             FriendCursor.Tick();
+
+            // ---- 延迟任务(等 UI 就绪后点按钮等) ----
+            PumpDelayed();
 
             // ---- 掉线自动重连 ----
             TickReconnect();
@@ -821,6 +872,42 @@ public static class CoopClient
             CoopLog.Info("[Coop] 已请求重新同步(重连对齐)");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 请求重同步失败: {e.Message}"); }
+    }
+
+    // ---------- 存档传输(队友进房直接载入房主的档) ----------
+
+    /// <summary>队友:请求房主把存档发过来</summary>
+    public static void SendSaveRequest()
+    {
+        if (Net == null || !Handshaked || string.IsNullOrEmpty(RoomCode)) return;
+        try
+        {
+            Net.Send(MsgType.SaveRequest, new Coop.SaveRequest { PlayerId = PlayerId });
+            CoopLog.Info("[Coop][存档] 已向房主请求存档");
+        }
+        catch (Exception e) { CoopLog.Warn($"[Coop][存档] 请求失败: {e.Message}"); }
+    }
+
+    public static void SendSaveMeta(int slot, int total, string hash, string name)
+    {
+        if (Net == null || !Handshaked || string.IsNullOrEmpty(RoomCode)) return;
+        try
+        {
+            Net.Send(MsgType.SaveMeta, new Coop.SaveMeta
+            { PlayerId = PlayerId, Slot = slot, Total = total, Hash = hash ?? "", Name = name ?? "" });
+        }
+        catch (Exception e) { CoopLog.Warn($"[Coop][存档] 元信息发送失败: {e.Message}"); }
+    }
+
+    public static void SendSaveChunk(int seq, byte[] data)
+    {
+        if (Net == null || !Handshaked || string.IsNullOrEmpty(RoomCode)) return;
+        try
+        {
+            Net.Send(MsgType.SaveChunk, new Coop.SaveChunk
+            { Seq = seq, Data = Google.Protobuf.ByteString.CopyFrom(data) });
+        }
+        catch (Exception e) { CoopLog.Warn($"[Coop][存档] 分片发送失败: {e.Message}"); }
     }
 
     /// <summary>执行远端 UI 事件(主线程;期间置 ApplyingRemote 防回环上报)</summary>
@@ -1205,6 +1292,8 @@ public static class CoopClient
         CoopLog.Level = logLv == "安静" ? CoopLogLv.Quiet : (logLv == "详细" ? CoopLogLv.Verbose : CoopLogLv.Normal);
         var hz = config.Bind("联机", "光标发送频率", 30, "每秒上报多少次队友光标(5~60;默认 30 已足够,配合插值观感平滑;调高只增加带宽)").Value;
         _cursorInterval = 1f / Math.Max(5, Math.Min(60, hz));
+        CoopHud.ShowRoomCode = config.Bind("联机", "游戏内显示房间码", true, "true=游戏场景左下角显示一行半透明小字『房间 XXXX』,方便随时报码;false=完全不显示").Value;
+        SaveTransfer.Enabled = config.Bind("联机", "使用房主的存档", true, "true(默认)=加入房间后直接载入房主的存档(世界状态完全一致);false=各自用自己的存档").Value;
         AutoTest = config.Bind("测试", "自动开局与回合测试", false, "诊断用:自动从主菜单开局并推进回合(正式联机请保持 false)").Value;
         // 自动加入码:优先环境变量,其次同目录测试文件 coop_test.txt(内容=房间码)
         try
