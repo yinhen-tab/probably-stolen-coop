@@ -10,6 +10,8 @@ COPY server/ /app/
 
 ENV COOP_HOST=0.0.0.0
 ENV COOP_PORT=27500
+# 日志等级: quiet / normal(默认) / debug(逐条转发流水,排查用)
+ENV COOP_LOG_LEVEL=normal
 
 EXPOSE 27500
 
