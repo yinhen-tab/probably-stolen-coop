@@ -450,6 +450,13 @@ public static class CoopClient
                     RunOnMain(() => InvLayoutSync.ApplyRemote(iv));
                 break;
             }
+            case MsgType.ItemMove:
+            {
+                var im = Coop.ItemMove.Parser.ParseFrom(env.Payload);
+                if (im.PlayerId != PlayerId)
+                    RunOnMain(() => ItemMoveSync.ApplyRemote(im));
+                break;
+            }
             case MsgType.ExpeditionSynced:
             {
                 var s = ExpeditionSynced.Parser.ParseFrom(env.Payload);
@@ -567,6 +574,9 @@ public static class CoopClient
 
             // ---- 库存布局(拖放后整份对齐) ----
             InvLayoutSync.TickSend();
+
+            // ---- 物品位置(只同步被移动的那一件) ----
+            ItemMoveSync.TickCapture();
 
             // ---- 队友物件高亮圈淡出 ----
             ObjectUseSync.Tick();
@@ -1314,6 +1324,7 @@ public static class CoopClient
         _cursorInterval = 1f / Math.Max(5, Math.Min(60, hz));
         CoopHud.ShowRoomCode = config.Bind("联机", "游戏内显示房间码", true, "true=游戏场景左下角显示一行半透明小字『房间 XXXX』,方便随时报码;false=完全不显示").Value;
         SaveTransfer.Enabled = config.Bind("联机", "使用房主的存档", true, "true(默认)=加入房间后直接载入房主的存档(世界状态完全一致);false=各自用自己的存档").Value;
+        ItemMoveSync.Enabled = config.Bind("联机", "同步物品位置", true, "true(默认)=拖动/移动物品时,对方那里同一件物品也跟着换位置(只影响这一件)").Value;
         AutoTest = config.Bind("测试", "自动开局与回合测试", false, "诊断用:自动从主菜单开局并推进回合(正式联机请保持 false)").Value;
         // 自动加入码:优先环境变量,其次同目录测试文件 coop_test.txt(内容=房间码)
         try
