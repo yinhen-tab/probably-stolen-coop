@@ -178,6 +178,8 @@ message DragState {
   string item_hint = 3;     // 物品提示(可空)
   float nx = 4;             // 归一化坐标(开始位置)
   float ny = 5;
+  int32 unique_id = 6;      // 被拖物品 uniqueId(对端让同一件物品跟着光标走,与单机一致)
+  string identifier = 7;    // 兜底匹配
 }
 
 // ---- 天同步 ----
