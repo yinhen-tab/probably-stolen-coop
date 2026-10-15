@@ -8,3 +8,19 @@ services:
     environment:
       - COOP_HOST=0.0.0.0
       - COOP_PORT=27500
+      # 日志等级: quiet / normal(默认) / debug(逐条流水,排查问题时才开)
+      - COOP_LOG_LEVEL=normal
+      # 房间全员掉线后保留多少秒等待重连
+      - COOP_ROOM_GRACE=90
+      # 需要落盘日志时打开(容器内路径),配合下面 volumes 挂载;默认只输出 stdout
+      # - COOP_LOG_FILE=/logs/coop.log
+      # - COOP_LOG_MAX_MB=5
+      # - COOP_LOG_BACKUPS=3
+    # 落盘日志(可选):打开上面的 COOP_LOG_FILE 后启用,单文件 5MB × 3 份自动轮转
+    # volumes:
+    #   - ./logs:/logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
