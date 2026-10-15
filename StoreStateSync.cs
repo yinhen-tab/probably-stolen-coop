@@ -7,50 +7,57 @@ using UnityEngine;
 namespace ProbablyStolenCoop;
 
 /// <summary>
-/// 店铺状态镜像("同店铺"):
-///  - 房主权威:资金/加价/吸引力/垃圾/供电/租金/贷款/服务/声望/机器库存/持有物品 → 定期快照广播
-///  - 接收方:把快照写进本地 PlayerStore(资金等为可写字段),缺失的物品尝试补发
-///  - 自愈:房主每 ~3 秒发一次(变化时才发),晚进/掉线自动对齐
+/// 店铺状态同步("同店铺" + 双向平等经营):
+///  - 双向增量:双方都广播本地变化;接收端按 delta 应用资金(两人赚的/花的是同一笔钱,都能回流)
+///  - 初始对齐:房主发一次权威全量(authoritative=true)→ 队友直接覆盖对齐
+///  - 状态型字段(服务/声望/机器数/机器库存/饮水机)直接覆盖
+///  - 物品:数量对齐(缺则补、多则移除;只移除"本会话补发过"的物品,避免误删玩家自有物品)
+///  - 防回环:应用远端快照后同步刷新本地上报基线,避免把"因应用产生的变化"再广播回去
 /// </summary>
 public static class StoreStateSync
 {
     private static string _lastHash = "";
     private static int _tick;
     private static bool _forceSend;
-    private static string _lastAppliedHash = "";   // 收到的快照哈希:重复的不重放
+    private static bool _forceAuth;
+    private static string _lastAppliedHash = "";
 
-    /// <summary>进房/有人加入时立即发一次</summary>
-    public static void ForceSendNextTick()
+    /// <summary>对端资金基准(按 playerId):双向增量的参照点</summary>
+    private static readonly Dictionary<int, int> _peerCashBase = new();
+
+    /// <summary>进房/有人加入时立即发一次;authoritative=true → 房主发权威全量做初始对齐</summary>
+    public static void ForceSendNextTick(bool authoritative = false)
     {
-        if (!CoopClient.IsHost) return;
         _forceSend = true;
+        if (authoritative) _forceAuth = true;
     }
 
-    /// <summary>心跳驱动:房主采集+发送快照(主线程)</summary>
+    /// <summary>心跳驱动:采集并发送(主线程;双向都发)</summary>
     public static void TickSend()
     {
         try
         {
             _tick++;
-            if (_tick % 600 == 0 && CoopClient.IsHost) _forceSend = true;   // ~10 秒自愈
-            if (!CoopClient.IsHost) return;
-            if (!_forceSend && _tick % 6 != 0) return;    // 采样节流
+            if (!_forceSend && _tick % 6 != 0) return;   // 采样节流
             if (CoopClient.Net == null || !CoopClient.Handshaked || string.IsNullOrEmpty(CoopClient.RoomCode)) return;
 
             var ps = PlayerStore.Instance;
             if (ps == null) return;
 
             var msg = Capture(ps);
-            string hash = Hash(msg);
-            // 内容没变就不发(自愈也不例外,否则每 10 秒刷屏一次)
-            if (hash == _lastHash) { _forceSend = false; return; }
+            bool auth = _forceAuth && CoopClient.IsHost;
+            msg.Authoritative = auth;
+
+            string hash = Hash(msg) + (auth ? "|A" : "");
+            if (hash == _lastHash) { _forceSend = false; _forceAuth = false; return; }
             _lastHash = hash;
             _forceSend = false;
+            _forceAuth = false;
 
             CoopClient.Net.Send(MsgType.ShopSnapshot, msg);
-            Plugin.Log.LogInfo($"[Coop] 上报店铺快照: 资金={msg.Cash} 第{msg.Day}天 服务={msg.Services.Count} 声望={msg.Reputations.Count} 物品={msg.Items.Count}种");
+            Plugin.Log.LogInfo($"[Coop] 上报店铺快照{(auth ? "(权威对齐)" : "")}: 资金={msg.Cash} 第{msg.Day}天 服务={msg.Services.Count} 物品={msg.Items.Count}种");
         }
-        catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 店铺快照异常: {e.Message}"); }
+        catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 店铺快照发送异常: {e.Message}"); }
     }
 
     static Coop.StoreSnapshot Capture(PlayerStore ps)
@@ -74,6 +81,7 @@ public static class StoreStateSync
         try { m.MachineryBought = ps.machineryBoughtCount; } catch { }
         try { m.CassetteInvJson = ps.cassettePlayerInvJSON ?? ""; } catch { }
         try { m.VendingInvJson = ps.vendingMachineInvJSON ?? ""; } catch { }
+        try { m.FountainInvJson = ps.vendingFountainInvJSON ?? ""; } catch { }
 
         // 服务
         try
@@ -137,31 +145,51 @@ public static class StoreStateSync
           .Append(m.ContrLow).Append(m.ContrMid).Append(m.ContrHigh).Append(m.ContrCritical).Append('|')
           .Append(m.BaseAttractiveness).Append('|').Append(m.ProjectorBonus).Append('|').Append(m.DealmakerBonus).Append('|')
           .Append(m.GarbageLevel).Append('|').Append(m.IsPowerOn).Append('|').Append(m.MachineryBought).Append('|')
-          .Append(m.CassetteInvJson.Length).Append('|').Append(m.VendingInvJson.Length);
+          .Append(m.CassetteInvJson.Length).Append('|').Append(m.VendingInvJson.Length).Append('|')
+          .Append(m.FountainInvJson.Length).Append('|');
         for (int i = 0; i < m.Services.Count; i++) sb.Append(m.Services[i].Id).Append(m.Services[i].Unlocked ? '1' : '0').Append(m.Services[i].IsUsing ? '1' : '0');
         for (int i = 0; i < m.Reputations.Count; i++) sb.Append(m.Reputations[i].FactionId).Append(':').Append(m.Reputations[i].Strength).Append(',').Append(m.Reputations[i].Influence);
         for (int i = 0; i < m.Items.Count; i++) sb.Append(m.Items[i].Id).Append('x').Append(m.Items[i].Count).Append(';');
         return sb.ToString();
     }
 
-    /// <summary>接收方:把房主快照写进本地店铺</summary>
+    /// <summary>接收远端快照:资金走增量、状态型字段直接覆盖、物品数量对齐</summary>
     public static void ApplySnapshot(Coop.StoreSnapshot m)
     {
         try
         {
             var ps = PlayerStore.Instance;
             if (ps == null) { Plugin.Log.LogWarning("[Coop] 店铺同步: 本地店铺未就绪,忽略"); return; }
-            if (CoopClient.IsHost) return;   // 房主不接受他人快照
+            if (m.PlayerId == CoopClient.PlayerId) return;   // 自己的快照忽略
 
-            // 重复快照不重放(字段已一致,没必要再写一遍刷日志)
-            string inHash = Hash(m);
+            // 重复快照不重放
+            string inHash = Hash(m) + (m.Authoritative ? "|A" : "");
             if (inHash == _lastAppliedHash) return;
             _lastAppliedHash = inHash;
 
             int cashBefore = 0;
             try { cashBefore = ps.playerCash; } catch { }
 
-            try { ps.playerCash = m.Cash; } catch { }
+            // ---- 累积型字段:资金用增量(双向共同经营) ----
+            int newCash = cashBefore;
+            if (m.Authoritative)
+            {
+                newCash = m.Cash;                       // 房主权威全量 → 直接对齐
+                _peerCashBase[m.PlayerId] = m.Cash;
+            }
+            else if (_peerCashBase.TryGetValue(m.PlayerId, out int baseCash))
+            {
+                int delta = m.Cash - baseCash;          // 对端变化量 → 累积到本地
+                _peerCashBase[m.PlayerId] = m.Cash;
+                newCash = cashBefore + delta;
+            }
+            else
+            {
+                _peerCashBase[m.PlayerId] = m.Cash;     // 首次收到:建立基准(等权威快照对齐)
+            }
+            try { ps.playerCash = newCash; } catch { }
+
+            // ---- 状态型字段:直接覆盖 ----
             try { ps.dayUntilRent = m.DayUntilRent; } catch { }
             try { ps.rentValue = m.RentValue; } catch { }
             try { ps.dayUntilLoan = m.DayUntilLoan; } catch { }
@@ -179,6 +207,7 @@ public static class StoreStateSync
             try { ps.machineryBoughtCount = m.MachineryBought; } catch { }
             if (!string.IsNullOrEmpty(m.CassetteInvJson)) { try { ps.cassettePlayerInvJSON = m.CassetteInvJson; } catch { } }
             if (!string.IsNullOrEmpty(m.VendingInvJson)) { try { ps.vendingMachineInvJSON = m.VendingInvJson; } catch { } }
+            if (!string.IsNullOrEmpty(m.FountainInvJson)) { try { ps.vendingFountainInvJSON = m.FountainInvJson; } catch { } }
 
             // 服务
             int svcChanged = 0;
@@ -228,33 +257,61 @@ public static class StoreStateSync
             }
             catch { }
 
-            // 物品:补发缺失的
-            int granted = 0, missing = 0;
+            // ---- 物品:数量对齐(补缺失 + 扣多余) ----
+            int granted = 0, removed = 0, missing = 0;
             try
             {
                 var own = ps.FindAllItem(true);
-                var have = new HashSet<string>();
+                var localCount = new Dictionary<string, int>();
                 if (own != null)
                     for (int i = 0; i < own.Count; i++)
-                        if (own[i] != null && !string.IsNullOrEmpty(own[i].identifier))
-                            have.Add(own[i].identifier);
+                    {
+                        var it = own[i];
+                        if (it == null) continue;
+                        string id = it.identifier ?? "";
+                        if (string.IsNullOrEmpty(id)) continue;
+                        int c = 1;
+                        try { c = Mathf.Max(1, it.unitCount); } catch { }
+                        localCount[id] = localCount.TryGetValue(id, out var old) ? old + c : c;
+                    }
+
                 for (int i = 0; i < m.Items.Count; i++)
                 {
                     var it = m.Items[i];
-                    if (have.Contains(it.Id)) continue;
-                    if (ItemGrant.TryGrant(it.Id, it.Count, out bool created))
+                    localCount.TryGetValue(it.Id, out int lc);
+                    if (lc < it.Count)
                     {
-                        if (created) granted++;
+                        int need = it.Count - lc;
+                        if (ItemGrant.TryGrant(it.Id, need, out bool created)) { if (created) granted++; }
+                        else missing++;
                     }
-                    else missing++;
+                    else if (lc > it.Count && ItemGrant.WasGrantedThisSession(it.Id))
+                    {
+                        // 只扣"联机期间补发过"的物品:队友消耗了 → 本地同步扣掉(避免误删你自己原有的库存)
+                        int excess = lc - it.Count;
+                        if (ItemGrant.TryRemove(it.Id, excess)) removed += excess;
+                    }
                 }
-                if (granted > 0 || missing > 0)
-                    Plugin.Log.LogInfo($"[Coop] 物品同步: 本地 {have.Count} 种, 新补发 {granted}, 缺失 {missing}");
+                // 远端"完全没有"、本地有、且是本会话补发进来的 → 队友那边已全部消耗,本地同步扣掉
+                foreach (var kv in localCount)
+                {
+                    if (kv.Value <= 0) continue;
+                    bool inRemote = false;
+                    for (int i = 0; i < m.Items.Count; i++)
+                        if (m.Items[i].Id == kv.Key) { inRemote = true; break; }
+                    if (inRemote) continue;
+                    if (!ItemGrant.WasGrantedThisSession(kv.Key)) continue;
+                    if (ItemGrant.TryRemove(kv.Key, kv.Value)) removed += kv.Value;
+                }
+                if (granted > 0 || removed > 0 || missing > 0)
+                    Plugin.Log.LogInfo($"[Coop] 物品数量对齐: 补发 {granted}, 扣除 {removed}, 缺失 {missing}");
             }
             catch { }
 
-            Plugin.Log.LogInfo($"[Coop] 已同步店铺: 资金 {cashBefore}→{m.Cash} 服务变更={svcChanged} 补发物品={granted} 缺失={missing}");
-            if (cashBefore != m.Cash) CoopHud.Toast($"店铺资金已同步:{m.Cash}");
+            // 防回环:应用后刷新本地上报基线(否则"应用产生的变化"会被当成自己的变化再广播回去)
+            try { _lastHash = Hash(Capture(ps)); } catch { }
+
+            Plugin.Log.LogInfo($"[Coop] 已同步店铺: 资金 {cashBefore}→{newCash}{(m.Authoritative ? " (权威对齐)" : " (增量)")} 服务变更={svcChanged} 补={granted} 扣={removed} 缺={missing}");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 店铺快照应用异常: {e.Message}"); }
     }
