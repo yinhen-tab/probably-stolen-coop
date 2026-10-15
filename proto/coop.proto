@@ -257,7 +257,10 @@ message ObjectUse {
 message PhoneSync {
   int32 player_id = 1;
   string kind = 2;    // open / close / book_open / book_close / call / hangup
+                      // 追加: dlg_start / dlg_end / dlg_choice(通话对话面板)
   int64 number = 3;   // 被叫号码(kind=call 时,与游戏内 StorePhoneClient 号码一致)
+  string arg = 4;     // dlg_start: 对话标题(诊断/匹配用)
+  int32 index = 5;    // dlg_choice: 选项下标
 }
 
 // ---- 音效同步(队友播放的音效本地回放) ----
