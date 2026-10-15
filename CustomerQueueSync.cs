@@ -144,9 +144,62 @@ public static class CustomerQueueSync
             finally { ApplyingHostQueue = false; }
 
             Plugin.Log.LogInfo($"[Coop] 已同步队友顾客队列: {fresh.Count} 位 [{sb}]");
-            CoopHud.Toast($"已同步队友顾客队列({fresh.Count} 位)");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 队列同步应用异常: {e.Message}"); }
+    }
+
+    /// <summary>顾客成交离店(本端游戏事件)→ 广播,让两端队列实时一致(不必等周期性自愈)</summary>
+    public static void ReportCustomerLeft(string id, string reason)
+    {
+        if (ApplyingHostQueue) return;
+        if (string.IsNullOrEmpty(id)) return;
+        if (CoopClient.Net == null || !CoopClient.Handshaked || string.IsNullOrEmpty(CoopClient.RoomCode)) return;
+        try
+        {
+            CoopClient.Net.Send(MsgType.CustomerLeft, new Coop.CustomerLeft
+            {
+                PlayerId = CoopClient.PlayerId,
+                CustomerId = id,
+                Reason = reason ?? "left",
+            });
+            Plugin.Log.LogInfo($"[Coop] 顾客成交离店上报: {id} ({reason})");
+        }
+        catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 顾客离店上报失败: {e.Message}"); }
+    }
+
+    /// <summary>收到队友端顾客离店 → 从本地队列移除(两端叫号不会错位)</summary>
+    public static void ApplyRemoteLeft(Coop.CustomerLeft msg)
+    {
+        try
+        {
+            var ps = PlayerStore.Instance;
+            var mgr = ps != null ? ps.storeClientManager : null;
+            var cur = mgr != null ? mgr.clientStack : null;
+            if (cur == null) return;
+            for (int i = cur.Count - 1; i >= 0; i--)
+            {
+                var c = cur[i];
+                string id = (c != null && c.identifier != null) ? c.identifier : "";
+                if (id != msg.CustomerId) continue;
+                ApplyingHostQueue = true;
+                try { cur.RemoveAt(i); } finally { ApplyingHostQueue = false; }
+                Plugin.Log.LogInfo($"[Coop] 已同步队友端顾客离店: {id}(本地队列剩 {cur.Count} 位)");
+                return;
+            }
+            Plugin.Log.LogInfo($"[Coop] 队友端顾客离店 {msg.CustomerId}(本地队列未见,应已一致)");
+        }
+        catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 顾客离店应用异常: {e.Message}"); }
+    }
+}
+
+/// <summary>顾客成交离店 → 上报(队列实时一致性)</summary>
+[HarmonyPatch(typeof(StoreClient), nameof(StoreClient.CompleteBusiness))]
+public static class CustomerCompleteBusinessPatch
+{
+    public static void Postfix(StoreClient __instance)
+    {
+        try { CustomerQueueSync.ReportCustomerLeft(__instance != null ? __instance.identifier : null, "dealt"); }
+        catch { }
     }
 }
 
