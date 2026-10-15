@@ -13,13 +13,29 @@ public static class DragSync
     {
         if (GameEventSync.ApplyingRemote) return;
         string hint = "";
+        int uid = 0;
+        string ident = "";
         try
         {
             var w = rend != null ? rend.window : null;
             if (w != null) hint = w.titleString ?? "";
         }
         catch { }
-        CoopClient.SendDrag(dragging, hint);
+        // 拖的是哪一件:TreeNodeRender.element 就是 GameItemElement(本身是 GameItem)
+        try
+        {
+            var el = rend != null ? rend.element : null;
+            var ge = el != null ? el.TryCast<GameItemElement>() : null;
+            if (ge != null)
+            {
+                uid = ge.uniqueId;
+                ident = ge.identifier ?? "";
+                if (string.IsNullOrEmpty(hint)) hint = ident;
+            }
+        }
+        catch { }
+        CoopLog.Detail($"[Coop] 本地拖拽: {(dragging ? "开始" : "结束")} {ident} uid={uid}");
+        CoopClient.SendDrag(dragging, hint, uid, ident);
     }
 }
 
