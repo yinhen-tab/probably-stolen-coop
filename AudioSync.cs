@@ -51,7 +51,7 @@ public static class AudioSync
                     case 2: ok = am.Play3(m.Identifier); break;
                     default: ok = am.Play(m.Identifier); break;
                 }
-                if (ok) Plugin.Log.LogInfo($"[Coop] 回放队友音效: {m.Identifier}");
+                if (ok) CoopLog.Detail($"[Coop] 回放队友音效: {m.Identifier}");
             }
             finally { ApplyingRemote = false; }
         }
