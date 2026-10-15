@@ -40,6 +40,9 @@ enum MsgType {
   SFX_SYNC = 27;           // 广播:音效事件(队友播放的音效本地回放)
   CLIENT_BEHAVIOR = 28;    // 广播:顾客行为事件(进店/挑选/结算,保证同一顾客结果一致)
   RESYNC_REQUEST = 29;     // 客户端 → 服务端:请求重发全量快照(重连后状态对齐)
+  SAVE_REQUEST = 30;       // 客户端 → 服务端 → 房主:请求房主把存档发过来(队友进房即用房主的档)
+  SAVE_META = 31;          // 房主 → 服务端 → 队友:存档元信息(槽位/总长/校验)
+  SAVE_CHUNK = 32;         // 房主 → 服务端 → 队友:存档分片
 }
 
 // 信封:所有消息的统一外层(便于扩展与版本协商)
@@ -272,4 +275,22 @@ message ClientBehavior {
 // ---- 重连后请求全量重发 ----
 message ResyncRequest {
   int32 player_id = 1;
+}
+
+// ---- 存档传输(队友进房 → 直接载入房主的档) ----
+message SaveRequest {
+  int32 player_id = 1;
+}
+
+message SaveMeta {
+  int32 player_id = 1;    // 发送方(房主)
+  int32 slot = 2;         // 存档槽位(save_<slot>.es3)
+  int32 total = 3;        // 存档总字节数
+  string hash = 4;        // 简单校验(长度+FNV 十六进制),接收端校验完整性
+  string name = 5;        // 存档显示名(调试用)
+}
+
+message SaveChunk {
+  int32 seq = 1;          // 分片序号(从 0 开始)
+  bytes data = 2;         // 分片内容(建议 <=256KB)
 }
