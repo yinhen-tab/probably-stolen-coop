@@ -37,6 +37,9 @@ enum MsgType {
   OBJECT_USE = 24;         // 广播:店内物件交互(看得见对方)
   PHONE_SYNC = 25;         // 广播:电话同步(界面开关 + 拨号/挂断)
   CUSTOMER_LEFT = 26;      // 广播:顾客成交离店(队列实时一致性)
+  SFX_SYNC = 27;           // 广播:音效事件(队友播放的音效本地回放)
+  CLIENT_BEHAVIOR = 28;    // 广播:顾客行为事件(进店/挑选/结算,保证同一顾客结果一致)
+  RESYNC_REQUEST = 29;     // 客户端 → 服务端:请求重发全量快照(重连后状态对齐)
 }
 
 // 信封:所有消息的统一外层(便于扩展与版本协商)
@@ -248,4 +251,25 @@ message PhoneSync {
   int32 player_id = 1;
   string kind = 2;    // open / close / book_open / book_close / call / hangup
   int64 number = 3;   // 被叫号码(kind=call 时,与游戏内 StorePhoneClient 号码一致)
+}
+
+// ---- 音效同步(队友播放的音效本地回放) ----
+message SfxSync {
+  int32 player_id = 1;
+  string identifier = 2;   // 音效标识符(AudioDirectory identifier)
+  int32 variant = 3;       // 0=Play 1=Play2 2=Play3(区分声道,尽量还原)
+}
+
+// ---- 顾客行为事件(同一顾客结果一致) ----
+message ClientBehavior {
+  int32 player_id = 1;
+  string client_id = 2;    // 顾客 identifier(跨端稳定)
+  string kind = 3;         // introduced=进店开始服务 / placed=挑选放置商品 / sold=卖出成交 / done=交易完成
+  string detail = 4;       // 物品 identifier 等附加信息(可空)
+  int32 amount = 5;        // 金额/数量(sold=成交价)
+}
+
+// ---- 重连后请求全量重发 ----
+message ResyncRequest {
+  int32 player_id = 1;
 }
