@@ -137,7 +137,7 @@ public static class CoopUI
     static void CreateRoomAndPickSave()
     {
         if (!string.IsNullOrEmpty(CoopClient.RoomCode)) { OpenLoadUiNow(); return; }   // 已在房间 → 直接选存档
-        if (!CoopClient.Handshaked) { CoopClient.TryConnect(); Plugin.Log.LogInfo("[Coop] 正在连接服务器,请稍候再点"); return; }
+        if (!CoopClient.Handshaked) { CoopClient.TryConnect(); CoopLog.Info("[Coop] 正在连接服务器,请稍候再点"); return; }
         CoopClient.RequestCreateRoom();
         WaitRoomThenOpen();
     }
@@ -148,7 +148,7 @@ public static class CoopUI
         string code = _joinInput != null ? (_joinInput.text ?? "").Trim().ToUpper() : "";
         if (code.Length < 4) { Plugin.Log.LogWarning("[Coop] 房间码不足 4 位"); return; }
         if (!string.IsNullOrEmpty(CoopClient.RoomCode)) { OpenLoadUiNow(); return; }
-        if (!CoopClient.Handshaked) { CoopClient.TryConnect(); Plugin.Log.LogInfo("[Coop] 正在连接服务器,请稍候再点"); return; }
+        if (!CoopClient.Handshaked) { CoopClient.TryConnect(); CoopLog.Info("[Coop] 正在连接服务器,请稍候再点"); return; }
         CoopClient.RequestJoinRoom(code);
         WaitRoomThenOpen();
     }
@@ -173,16 +173,23 @@ public static class CoopUI
         Plugin.Log.LogWarning("[Coop] 等待房间确认超时(服务器无响应),未打开存档界面");
     }
 
-    /// <summary>关面板 → 打开游戏原生"载入存档"界面(玩家选自己的存档进入)</summary>
+    /// <summary>关面板 → 打开游戏原生"载入存档"界面(房主选自己的档;队友改用房主的档,由 SaveTransfer 自动载入)</summary>
     static void OpenLoadUiNow()
     {
         try
         {
+            // 队友:不选自己的档,等房主的档发过来后自动载入
+            if (!CoopClient.IsHost && SaveTransfer.Enabled)
+            {
+                if (_panelGo != null) _panelGo.SetActive(false);
+                CoopLog.Info("[Coop] 队友模式:正在获取房主的存档(无需选择自己的存档)");
+                return;
+            }
             if (_panelGo != null) _panelGo.SetActive(false);
             var m = MainMenuUIController.Instance;
             if (m == null) { Plugin.Log.LogWarning("[Coop] 主菜单实例为空,无法打开存档界面"); return; }
             m.OnLoadGameClick();
-            Plugin.Log.LogInfo("[Coop] 已打开游戏存档界面(请选择自己的存档进入)");
+            CoopLog.Info("[Coop] 已打开游戏存档界面(房主:请选择自己的存档进入)");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 打开存档界面失败: {e.Message}"); }
     }
@@ -190,7 +197,7 @@ public static class CoopUI
     static void ClosePanel()
     {
         if (_panelGo != null) _panelGo.SetActive(false);
-        Plugin.Log.LogInfo("[Coop] 联机面板已关闭");
+        CoopLog.Info("[Coop] 联机面板已关闭");
     }
 
     // ================= 入口按钮(克隆) =================
@@ -248,13 +255,13 @@ public static class CoopUI
             try { return MatchMenuOrder(GetButtonText(a)).CompareTo(MatchMenuOrder(GetButtonText(c))); }
             catch { return 0; }
         });
-        Plugin.Log.LogInfo($"[Coop] 主菜单按钮找到 {list.Count} 个");
+        CoopLog.Info($"[Coop] 主菜单按钮找到 {list.Count} 个");
         for (int i = 0; i < list.Count; i++)
         {
             try
             {
                 var rt = list[i].GetComponent<RectTransform>();
-                Plugin.Log.LogInfo($"[Coop]   [{i}] \"{GetButtonText(list[i])}\" y={rt.position.y:F0} x={rt.position.x:F0}");
+                CoopLog.Info($"[Coop]   [{i}] \"{GetButtonText(list[i])}\" y={rt.position.y:F0} x={rt.position.x:F0}");
             }
             catch { }
         }
@@ -311,7 +318,7 @@ public static class CoopUI
             for (int i = 2; i < n; i++)
                 rts[i].anchoredPosition = new Vector2(rts[i].anchoredPosition.x, ys[i] - gap);
             _buttonGo = clone;
-            Plugin.Log.LogInfo($"[Coop] 多人联机按钮已插入主菜单(gap={gap:F0})");
+            CoopLog.Info($"[Coop] 多人联机按钮已插入主菜单(gap={gap:F0})");
             try { menu.StartCoroutine(LogBtnScreenPos(clone).WrapToIl2Cpp()); } catch { }
         }
         catch (Exception e)
@@ -330,7 +337,7 @@ public static class CoopUI
         try
         {
             if (go != null)
-                Plugin.Log.LogInfo($"[Coop] 多人联机按钮屏幕坐标: {go.GetComponent<RectTransform>().position}");
+                CoopLog.Info($"[Coop] 多人联机按钮屏幕坐标: {go.GetComponent<RectTransform>().position}");
         }
         catch { }
     }
@@ -493,7 +500,7 @@ public static class CoopUI
 
             _panelGo.SetActive(false);
             _panelBuilt = true;
-            Plugin.Log.LogInfo("[Coop] 多人联机面板已构建(原生风格 + 右上角关闭)");
+            CoopLog.Info("[Coop] 多人联机面板已构建(原生风格 + 右上角关闭)");
         }
         catch (Exception e)
         {
@@ -598,7 +605,7 @@ public static class CoopUI
             // 打开瞬间校正按钮文字(本地化系统会把克隆按钮的文字刷回"载入游戏")
             SetButtonLabel(_createBtnGo, "创建房间");
             SetButtonLabel(_joinBtnGo, "加入房间");
-            Plugin.Log.LogInfo("[Coop] 联机面板已打开");
+            CoopLog.Info("[Coop] 联机面板已打开");
         }
     }
 
