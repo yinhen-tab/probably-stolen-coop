@@ -856,13 +856,14 @@ public static class CoopClient
     }
 
     /// <summary>上报本地电话操作(界面开关/拨打/挂断)</summary>
-    public static void SendPhoneSync(string kind, long number)
+    public static void SendPhoneSync(string kind, long number, string arg = "", int index = -1)
     {
         if (Net == null || !Handshaked || string.IsNullOrEmpty(RoomCode)) return;
         try
         {
-            Net.Send(MsgType.PhoneSync, new Coop.PhoneSync { PlayerId = PlayerId, Kind = kind, Number = number });
-            CoopLog.Detail($"[Coop] 本地上报电话: {kind}{(number != 0 ? " " + number : "")}");
+            Net.Send(MsgType.PhoneSync, new Coop.PhoneSync
+            { PlayerId = PlayerId, Kind = kind, Number = number, Arg = arg ?? "", Index = index });
+            CoopLog.Detail($"[Coop] 本地上报电话: {kind}{(number != 0 ? " " + number : "")}{(string.IsNullOrEmpty(arg) ? "" : " " + arg)}");
         }
         catch (Exception e)
         {
