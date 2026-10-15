@@ -96,7 +96,7 @@ public static class ItemGrant
             {
                 try { ps.OnWeightedAreaChanged(); } catch { }
                 try { ps.OnMainInvAreaChange(); } catch { }
-                Plugin.Log.LogInfo($"[Coop] 已扣除本地物品 {id} × {done}(队友端已消耗)");
+                CoopLog.Info($"[Coop] 已扣除本地物品 {id} × {done}(队友端已消耗)");
             }
             return done > 0;
         }
@@ -125,13 +125,13 @@ public static class ItemGrant
                     }
                     catch { }
                 }
-            Plugin.Log.LogInfo($"[Coop][深诊] FindAllItem 立即可见={found} 总数={own?.Count ?? -1} 头四个=[{firstIds}]");
+            CoopLog.Detail($"[Coop][深诊] FindAllItem 立即可见={found} 总数={own?.Count ?? -1} 头四个=[{firstIds}]");
 
             // 2. IsPlayerOwnThisItem
-            try { Plugin.Log.LogInfo($"[Coop][深诊] IsPlayerOwn({id})={ps.IsPlayerOwnThisItem(id)}"); } catch (Exception e) { Plugin.Log.LogInfo($"[Coop][深诊] IsPlayerOwn 异常:{e.Message}"); }
+            try { CoopLog.Detail($"[Coop][深诊] IsPlayerOwn({id})={ps.IsPlayerOwnThisItem(id)}"); } catch (Exception e) { CoopLog.Info($"[Coop][深诊] IsPlayerOwn 异常:{e.Message}"); }
 
             // 2b. FindAllItem(false) 对比
-            try { var all2 = ps.FindAllItem(false); Plugin.Log.LogInfo($"[Coop][深诊] FindAllItem(false) 总数={all2?.Count ?? -1}"); } catch (Exception e) { Plugin.Log.LogInfo($"[Coop][深诊] FindAllItem(false) 异常:{e.Message}"); }
+            try { var all2 = ps.FindAllItem(false); CoopLog.Detail($"[Coop][深诊] FindAllItem(false) 总数={all2?.Count ?? -1}"); } catch (Exception e) { CoopLog.Info($"[Coop][深诊] FindAllItem(false) 异常:{e.Message}"); }
 
             // 2c. gridInv.children(图链接)里找新物品
             try
@@ -143,17 +143,17 @@ public static class ItemGrant
                     {
                         try { var gi = ch[i]?.TryCast<GameItem>(); if (gi != null && gi.identifier == id) hit++; } catch { }
                     }
-                Plugin.Log.LogInfo($"[Coop][深诊] gridInv.children={n} 其中 {id} 数量={hit}");
+                CoopLog.Detail($"[Coop][深诊] gridInv.children={n} 其中 {id} 数量={hit}");
             }
-            catch (Exception e) { Plugin.Log.LogInfo($"[Coop][深诊] children 遍历异常:{e.Message}"); }
+            catch (Exception e) { CoopLog.Detail($"[Coop][深诊] children 遍历异常:{e.Message}"); }
 
             // 2d. mainInvJSON 实时性(头 160 字符)
             try
             {
                 var j = ps.mainInvJSON;
-                Plugin.Log.LogInfo($"[Coop][深诊] mainInvJSON len={j?.Length ?? -1} head={(string.IsNullOrEmpty(j) ? "(空)" : j.Substring(0, Math.Min(160, j.Length)))}");
+                CoopLog.Detail($"[Coop][深诊] mainInvJSON len={j?.Length ?? -1} head={(string.IsNullOrEmpty(j) ? "(空)" : j.Substring(0, Math.Min(160, j.Length)))}");
             }
-            catch (Exception e) { Plugin.Log.LogInfo($"[Coop][深诊] mainInvJSON 异常:{e.Message}"); }
+            catch (Exception e) { CoopLog.Detail($"[Coop][深诊] mainInvJSON 异常:{e.Message}"); }
 
             // 3. 对照基准:从 FindAllItem(游戏认可的)里取物品
             var ft = Il2CppInterop.Runtime.Il2CppType.Of<GameItem>();
@@ -162,13 +162,13 @@ public static class ItemGrant
             try { var own0 = ps.FindAllItem(true); if (own0 != null && own0.Count > 0) refItem = own0[0]; } catch { }
 
             // 3a. 基准对照:游戏认可物品的归属检查(应为 True)
-            try { if (refItem != null) Plugin.Log.LogInfo($"[Coop][深诊] 基准: IsPlayerOwn({refItem.identifier})= {ps.IsPlayerOwnThisItem(refItem.identifier)}"); } catch { }
+            try { if (refItem != null) CoopLog.Detail($"[Coop][深诊] 基准: IsPlayerOwn({refItem.identifier})= {ps.IsPlayerOwnThisItem(refItem.identifier)}"); } catch { }
 
             // 3a2. 关键:gridInv 与水物品的容器是否同一个对象(指针对比)
             try
             {
                 var invPtr = Il2CppInterop.Runtime.IL2CPP.Il2CppObjectBaseToPtr(inv);
-                Plugin.Log.LogInfo($"[Coop][深诊] gridInv 指针=0x{invPtr.ToInt64():X}");
+                CoopLog.Detail($"[Coop][深诊] gridInv 指针=0x{invPtr.ToInt64():X}");
             }
             catch { }
 
@@ -177,14 +177,14 @@ public static class ItemGrant
             if (refItem != null) DumpParents("基准物品 " + (refItem.identifier ?? "?"), refItem);
 
             // 3c. 基础字段对比
-            try { Plugin.Log.LogInfo($"[Coop][深诊] 基础字段: 新物品 unitCount={newItem.unitCount} uniqueId={newItem.uniqueId} name={newItem.name}"); } catch (Exception e) { Plugin.Log.LogInfo($"[Coop][深诊] 新物品字段异常:{e.Message}"); }
-            try { if (refItem != null) Plugin.Log.LogInfo($"[Coop][深诊] 基础字段: 原物品 unitCount={refItem.unitCount} uniqueId={refItem.uniqueId} name={refItem.name}"); } catch { }
+            try { CoopLog.Detail($"[Coop][深诊] 基础字段: 新物品 unitCount={newItem.unitCount} uniqueId={newItem.uniqueId} name={newItem.name}"); } catch (Exception e) { CoopLog.Info($"[Coop][深诊] 新物品字段异常:{e.Message}"); }
+            try { if (refItem != null) CoopLog.Detail($"[Coop][深诊] 基础字段: 原物品 unitCount={refItem.unitCount} uniqueId={refItem.uniqueId} name={refItem.name}"); } catch { }
 
             foreach (var fname in new string[] { "parentInventory", "isOwn", "isOwned" })
             {
                 string nv = "?", rv = "?";
                 try { var f = ft.GetField(fname, bf); if (f != null) { nv = f.GetValue(newItem)?.ToString() ?? "null"; if (refItem != null) rv = f.GetValue(refItem)?.ToString() ?? "null"; } else nv = "(无此字段)"; } catch (Exception e) { nv = "err:" + e.Message; }
-                Plugin.Log.LogInfo($"[Coop][深诊] 字段 {fname}: 新物品={nv} | 原物品={rv}");
+                CoopLog.Detail($"[Coop][深诊] 字段 {fname}: 新物品={nv} | 原物品={rv}");
             }
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop][深诊] 异常: {e.Message}"); }
@@ -197,10 +197,10 @@ public static class ItemGrant
         {
             var bf = Il2CppSystem.Reflection.BindingFlags.Public | Il2CppSystem.Reflection.BindingFlags.NonPublic | Il2CppSystem.Reflection.BindingFlags.Instance;
             var prop = Il2CppInterop.Runtime.Il2CppType.Of<GameItem>().GetProperty("parents", bf);
-            if (prop == null) { Plugin.Log.LogInfo($"[Coop][深诊] {tag}: 无 parents 属性"); return; }
+            if (prop == null) { CoopLog.Detail($"[Coop][深诊] {tag}: 无 parents 属性"); return; }
             var v = prop.GetValue(it);
             var list = v?.TryCast<Il2CppSystem.Collections.Generic.List<GraphNodeStorage>>();
-            if (list == null) { Plugin.Log.LogInfo($"[Coop][深诊] {tag}: parents 取值失败"); return; }
+            if (list == null) { CoopLog.Detail($"[Coop][深诊] {tag}: parents 取值失败"); return; }
             var sb = new StringBuilder();
             int cnt = 0;
             for (int i = 0; i < list.Count && i < 6; i++)
@@ -228,9 +228,9 @@ public static class ItemGrant
                 sb.Append(desc);
                 cnt++;
             }
-            Plugin.Log.LogInfo($"[Coop][深诊] {tag} parents(列出{cnt}个)= {sb}");
+            CoopLog.Detail($"[Coop][深诊] {tag} parents(列出{cnt}个)= {sb}");
         }
-        catch (Exception e) { Plugin.Log.LogInfo($"[Coop][深诊] {tag} parents 异常: {e.Message}"); }
+        catch (Exception e) { CoopLog.Detail($"[Coop][深诊] {tag} parents 异常: {e.Message}"); }
     }
 
     /// <summary>
@@ -263,11 +263,11 @@ public static class ItemGrant
                     if (gv != null)
                     {
                         _cachedInv = gv;
-                        Plugin.Log.LogInfo($"[Coop] 定位本地库存: 从物品({probe.identifier})反推容器成功");
+                        CoopLog.Info($"[Coop] 定位本地库存: 从物品({probe.identifier})反推容器成功");
                         return _cachedInv;
                     }
                 }
-                Plugin.Log.LogInfo("[Coop] 定位本地库存: 反推失败(父不是 GameInventory),尝试兜底");
+                CoopLog.Info("[Coop] 定位本地库存: 反推失败(父不是 GameInventory),尝试兜底");
             }
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 反推容器异常: {e.Message}"); }
@@ -285,7 +285,7 @@ public static class ItemGrant
                     _cachedInv = v.TryCast<GameGridInventory>();
                     if (_cachedInv != null)
                     {
-                        Plugin.Log.LogInfo("[Coop] 定位本地库存: 兜底反射 gridInv");
+                        CoopLog.Info("[Coop] 定位本地库存: 兜底反射 gridInv");
                         return _cachedInv;
                     }
                 }
