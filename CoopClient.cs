@@ -44,6 +44,9 @@ public static class CoopClient
     public static int PlayerId;
     public static bool Handshaked;
 
+    /// <summary>本 mod 协议版本(与服务端校验;不匹配会明确提示而不是静默错乱)</summary>
+    public const int ModProtocol = 1;
+
     /// <summary>自动测试:进主菜单后自动开局,进游戏后自动推进回合(诊断用,正式版关)</summary>
     public static bool AutoTest = false;
 
@@ -81,6 +84,7 @@ public static class CoopClient
                 PlayerName = string.IsNullOrEmpty(MyName) ? ("玩家" + Environment.TickCount % 10000) : MyName,
                 ModVersion = MyPluginInfo.PLUGIN_VERSION,
                 GameBuild = "25382790",
+                Protocol = ModProtocol,
             });
             Plugin.Log.LogInfo($"[Coop] 已连接 {ServerHost}:{ServerPort}");
         }
@@ -111,7 +115,15 @@ public static class CoopClient
                 PlayerId = w.PlayerId;
                 Handshaked = true;
                 LastErr = "";
-                Plugin.Log.LogInfo($"[Coop] WELCOME id={w.PlayerId} proto={w.ServerProtocol}");
+                Plugin.Log.LogInfo($"[Coop] WELCOME id={w.PlayerId} proto={w.ServerProtocol} 服务端最低要求={w.MinProtocol}");
+                if (w.MinProtocol > ModProtocol)
+                {
+                    LastErr = $"版本不匹配: 服务器要求 mod 协议 v{w.MinProtocol},当前 v{ModProtocol}" +
+                              (string.IsNullOrEmpty(w.MinModVersion) ? "" : $"(需要 {w.MinModVersion})") + " — 请更新 mod";
+                    Plugin.Log.LogWarning($"[Coop] {LastErr}");
+                    string err = LastErr;
+                    RunOnMain(() => CoopHud.Toast(err));
+                }
                 TryAutoJoin();   // 测试:自动加入(网络线程直接发,无需主线程)
                 // 不自动建房/加入:只有玩家在"多人联机"面板操作才会进房间(单机不受影响)
                 break;
@@ -127,7 +139,9 @@ public static class CoopClient
                 {
                     _lastSentDay = -999;   // 重新上报我的天数
                     if (IsHost) CustomerQueueSync.ForceSendNextTick();   // 进房即发队列快照
-                    if (IsHost) StoreStateSync.ForceSendNextTick();   // 进房即发店铺快照
+                    // 进房即发店铺快照:房主发"权威全量"做初始对齐;队友发普通快照建立增量基准
+                    StoreStateSync.ForceSendNextTick(true);
+                    SaveGuard.BeginSession();   // 存档保护:以加入者身份进房时备份本地存档
                 }
                 for (int i = 0; i < j.State.Players.Count; i++)
                 {
@@ -146,7 +160,7 @@ public static class CoopClient
                 Plugin.Log.LogInfo($"[Coop] {p.PlayerName} 进入房间");
                 string nm = p.PlayerName;
                 if (IsHost) CustomerQueueSync.ForceSendNextTick();   // 有人加入 → 重发队列快照
-                if (IsHost) StoreStateSync.ForceSendNextTick();
+                if (IsHost) StoreStateSync.ForceSendNextTick(true);   // 房主发权威全量,让新加入者立即对齐
                 RunOnMain(() => CoopHud.Toast($"{nm} 加入了房间"));
                 break;
             }
@@ -197,6 +211,13 @@ public static class CoopClient
                 bool dragging = d.Dragging;
                 string hint = d.ItemHint;
                 RunOnMain(() => FriendCursor.SetDragging(dragging, hint));
+                break;
+            }
+            case MsgType.CustomerLeft:
+            {
+                var cl = Coop.CustomerLeft.Parser.ParseFrom(env.Payload);
+                if (cl.PlayerId != PlayerId)
+                    RunOnMain(() => CustomerQueueSync.ApplyRemoteLeft(cl));
                 break;
             }
             case MsgType.DaySync:
