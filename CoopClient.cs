@@ -340,7 +340,9 @@ public static class CoopClient
                 var d = DragState.Parser.ParseFrom(env.Payload);
                 bool dragging = d.Dragging;
                 string hint = d.ItemHint;
-                RunOnMain(() => FriendCursor.SetDragging(dragging, hint));
+                int duid = d.UniqueId;
+                string dident = d.Identifier;
+                RunOnMain(() => FriendCursor.SetDragging(dragging, hint, duid, dident));
                 break;
             }
             case MsgType.CustomerLeft:
@@ -1153,10 +1155,14 @@ public static class CoopClient
         catch { }
     }
 
-    public static void SendDrag(bool dragging, string hint)
+    public static void SendDrag(bool dragging, string hint, int uid = 0, string ident = "")
     {
         if (Net == null || !Handshaked || string.IsNullOrEmpty(RoomCode)) return;
-        try { Net.Send(MsgType.DragState, new DragState { Dragging = dragging, ItemHint = hint ?? "" }); }
+        try
+        {
+            Net.Send(MsgType.DragState, new DragState
+            { Dragging = dragging, ItemHint = hint ?? "", UniqueId = uid, Identifier = ident ?? "" });
+        }
         catch { }
     }
 
