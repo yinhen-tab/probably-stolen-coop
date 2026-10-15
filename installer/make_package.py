@@ -164,6 +164,17 @@ def main():
     for f in ('install.bat', 'uninstall.bat'):
         shutil.copy2(os.path.join(HERE, f), stage)
 
+    # 版本标记:装完由 install.bat 打印,方便确认"朋友装的是不是新包"
+    try:
+        import datetime
+        with open(os.path.join(stage, 'VERSION.txt'), 'w', encoding='gbk') as f:
+            f.write('================================================\n')
+            f.write('  版本: %s\n' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M'))
+            f.write('  含: 用房主的档 / 容器同步 / 物品位置同步 / 掉线重连 / 音效与顾客行为\n')
+            f.write('================================================\n')
+    except Exception as e:
+        print('      (VERSION.txt 写入失败: %s)' % e)
+
     print('[5/5] 打包 zip...')
     os.makedirs(OUT, exist_ok=True)
     zip_path = os.path.join(OUT, 'ProbablyStolen联机一键安装.zip')
