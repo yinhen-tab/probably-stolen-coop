@@ -189,7 +189,8 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
     if conn.room is None:
         # 展示/高频类消息:未入房时静默丢弃(避免刷屏回错)
         if t in (pb.CURSOR_POS, pb.UI_EVENT, pb.PLAYER_CLICK, pb.DRAG_STATE, pb.GAME_EVENT,
-                 pb.OBJECT_USE, pb.PHONE_SYNC, pb.CUSTOMER_LEFT,
+                 pb.OBJECT_USE, pb.PHONE_SYNC, pb.CUSTOMER_LEFT, pb.SFX_SYNC,
+                 pb.CLIENT_BEHAVIOR, pb.RESYNC_REQUEST,
                  pb.SHOP_SNAPSHOT, pb.CLIENT_QUEUE_SYNC, pb.DAY_SYNC):
             return
         await conn.send(pb.ERROR, pb.ErrorMsg(code='NOT_IN_ROOM', message='先创建或加入房间').SerializeToString())
@@ -342,6 +343,38 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
         log('房间 %s 游戏事件: 玩家 %d %s' % (room.code, conn.player_id, ev.kind))
         return
 
+    if t == pb.SFX_SYNC:
+        # 音效:转发(对端本地回放同一音效)
+        sx = pb.SfxSync()
+        sx.ParseFromString(env.payload)
+        if ECHO:
+            room.broadcast(pb.SFX_SYNC, env.payload)
+        else:
+            room.broadcast(pb.SFX_SYNC, env.payload, exclude=conn.player_id)
+        log('房间 %s 音效: 玩家 %d %s' % (room.code, conn.player_id, sx.identifier))
+        return
+
+    if t == pb.CLIENT_BEHAVIOR:
+        # 顾客行为事件:转发(同一顾客结果一致)
+        cb = pb.ClientBehavior()
+        cb.ParseFromString(env.payload)
+        if ECHO:
+            room.broadcast(pb.CLIENT_BEHAVIOR, env.payload)
+        else:
+            room.broadcast(pb.CLIENT_BEHAVIOR, env.payload, exclude=conn.player_id)
+        log('房间 %s 顾客行为: 玩家 %d %s %s%s' % (room.code, conn.player_id, cb.kind, cb.client_id,
+            (' 金额=%d' % cb.amount) if cb.amount else ''))
+        return
+
+    if t == pb.RESYNC_REQUEST:
+        # 重连后请求全量对齐:转告其他人(房主收到后会强制重发快照)
+        if ECHO:
+            room.broadcast(pb.RESYNC_REQUEST, env.payload)
+        else:
+            room.broadcast(pb.RESYNC_REQUEST, env.payload, exclude=conn.player_id)
+        log('房间 %s 玩家 %d 请求重新同步(重连对齐)' % (room.code, conn.player_id))
+        return
+
     if t == pb.PING:
         ping = pb.Ping()
         ping.ParseFromString(env.payload)
@@ -353,13 +386,26 @@ async def dispatch(conn: Connection, env: pb.Envelope) -> None:
     await conn.send(pb.ERROR, pb.ErrorMsg(code='UNKNOWN', message='未知消息类型 %d' % t).SerializeToString())
 
 
+ROOM_GRACE_SECONDS = int(os.environ.get('COOP_ROOM_GRACE', '90'))   # 全员掉线后保留房间的秒数(允许重连回原房)
+
+
+async def _reap_room_later(room: 'Room') -> None:
+    """空房延迟回收:给掉线玩家一个重连窗口,期间房间保留。"""
+    await asyncio.sleep(ROOM_GRACE_SECONDS)
+    if not room.players and rooms.get(room.code) is room:
+        rooms.pop(room.code, None)
+        log('房间 %s 空置超 %d 秒,已回收' % (room.code, ROOM_GRACE_SECONDS))
+
+
 async def cleanup(conn: Connection) -> None:
     room = conn.room
     if room is not None:
         room.players.pop(conn.player_id, None)
+        conn.room = None
         if not room.players:
-            rooms.pop(room.code, None)
-            log('房间 %s 空,已回收' % room.code)
+            # 不立即回收:保留 ROOM_GRACE_SECONDS 秒等待重连(房主掉线同理)
+            asyncio.create_task(_reap_room_later(room))
+            log('房间 %s 暂时无人(保留 %d 秒等待重连)' % (room.code, ROOM_GRACE_SECONDS))
         else:
             room.broadcast(pb.PLAYER_LEFT, pb.PlayerInfo(
                 player_id=conn.player_id, player_name=conn.player_name).SerializeToString())
