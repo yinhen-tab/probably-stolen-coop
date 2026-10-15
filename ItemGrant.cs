@@ -15,6 +15,9 @@ public static class ItemGrant
     private static float _lastFind;
     private static readonly System.Collections.Generic.HashSet<string> _grantedIds = new System.Collections.Generic.HashSet<string>();
 
+    /// <summary>对外暴露:玩家真实主库存(反推容器;供库存布局同步使用)</summary>
+    public static GameInventory FindPlayerInventoryPublic() => FindPlayerInventory();
+
     /// <summary>尝试补发 count 个 id 的物品;newlyCreated=本次真正新建了物品;返回 true=物品处于已满足状态</summary>
     public static bool TryGrant(string id, int count, out bool newlyCreated)
     {
@@ -238,8 +241,7 @@ public static class ItemGrant
     /// (经验:PlayerStore.gridInv 不是物品容器,真正的容器挂在物品的 parents[0] 上)
     /// </summary>
     static GameInventory FindPlayerInventory()
-    {
-        if (_cachedInv != null) return _cachedInv;
+    {        if (_cachedInv != null) return _cachedInv;
         if (Time.time - _lastFind < 5f) return null;
         _lastFind = Time.time;
 
