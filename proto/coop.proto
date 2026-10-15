@@ -1,0 +1,238 @@
+syntax = "proto3";
+
+package coop;
+
+// 协议版本:客户端与服务端不匹配时拒连
+// v1 = 首个实现(房间 + 回合推进广播)
+enum ProtocolVersion {
+  PROTO_UNSPECIFIED = 0;
+  V1 = 1;
+}
+
+// 消息类型
+enum MsgType {
+  MSG_UNKNOWN = 0;
+  HELLO = 1;        // 客户端 → 服务端:握手(版本/玩家名/mod 版本)
+  WELCOME = 2;      // 服务端 → 客户端:分配 player_id,确认协议版本
+  CREATE_ROOM = 3;  // 客户端 → 服务端
+  JOIN_ROOM = 4;    // 客户端 → 服务端(房间码)
+  ROOM_JOINED = 5;  // 服务端 → 客户端:加入成功(房间全量状态)
+  PLAYER_JOINED = 6;   // 服务端 → 广播:有人进来
+  PLAYER_LEFT = 7;     // 服务端 → 广播:有人离开
+  ADVANCE_TURN = 8;    // 客户端 → 服务端:推进回合意图(权威)
+  TURN_ADVANCED = 9;   // 服务端 → 广播:回合已推进(新回合数/时钟)
+  EXPEDITION_RESULT = 11; // 客户端 → 服务端:远征战利品回传
+  EXPEDITION_SYNCED = 12; // 服务端 → 广播:战利品已入账
+  PING = 13;
+  PONG = 14;
+  ERROR = 15;
+  CURSOR_POS = 16;  // 广播:光标位置(操作可见性,~20Hz 转发)
+  UI_EVENT = 17;    // 广播:UI 窗口打开/关闭(操作可见性)
+  PLAYER_CLICK = 18; // 广播:点击特效("朋友点了这里")
+  GAME_EVENT = 19;   // 广播:游戏事件(叫号/开门/关门/结束一天)
+  DRAG_STATE = 20;   // 广播:拖拽状态(拖动开始/结束)
+  DAY_SYNC = 21;     // 广播:玩家天数(天同步)
+  CLIENT_QUEUE_SYNC = 22;  // 广播:顾客队列快照(同一批顾客)
+  SHOP_SNAPSHOT = 23;     // 房主权威:店铺完整快照(同店铺)
+  OBJECT_USE = 24;         // 广播:店内物件交互(看得见对方)
+  PHONE_SYNC = 25;         // 广播:电话同步(界面开关 + 拨号/挂断)
+}
+
+// 信封:所有消息的统一外层(便于扩展与版本协商)
+message Envelope {
+  int32 version = 1;   // ProtocolVersion
+  MsgType type = 2;
+  bytes payload = 3;   // 具体消息的序列化字节
+}
+
+// ---- 握手 ----
+message Hello {
+  string player_name = 1;
+  string mod_version = 2;   // 例如 "0.1.0"
+  string game_build = 3;    // 游戏 buildid,便于服务端记录
+}
+
+message Welcome {
+  int32 player_id = 1;
+  int32 server_protocol = 2;
+  string server_version = 3;
+}
+
+// ---- 房间 ----
+message PlayerInfo {
+  int32 player_id = 1;
+  string player_name = 2;
+  bool in_expedition = 3;   // 是否在远征中(异步)
+}
+
+message RoomState {
+  string room_code = 1;
+  int32 turn_count = 2;         // 当前回合数
+  repeated PlayerInfo players = 3;
+  int32 cash = 4;               // 共享资金
+  int32 day = 5;
+}
+
+message CreateRoom {
+  string player_name = 1;
+}
+
+message JoinRoom {
+  string room_code = 1;
+}
+
+message RoomJoined {
+  RoomState state = 1;
+}
+
+// ---- 回合 ----
+message AdvanceTurn {
+  // 无需字段:权威推进,服务端统一发号
+}
+
+message TurnAdvanced {
+  int32 turn_count = 1;
+  int32 day = 2;
+  int64 server_time_ms = 3;
+}
+
+// ---- 远征异步回传 ----
+message ExpeditionResult {
+  string expedition_name = 1;
+  int32 rooms_cleared = 2;
+  repeated ExpeditionLoot loot = 3;
+  bool success = 4;
+}
+
+message ExpeditionLoot {
+  string item_identifier = 1;
+  int32 count = 2;
+  int32 unit_value = 3;
+}
+
+message ExpeditionSynced {
+  int32 player_id = 1;
+  string expedition_name = 2;
+  int32 loot_total_value = 3;
+}
+
+// ---- 通用 ----
+message Ping {
+  int64 client_time_ms = 1;
+}
+
+message Pong {
+  int64 client_time_ms = 1;
+  int64 server_time_ms = 2;
+}
+
+message ErrorMsg {
+  string code = 1;
+  string message = 2;
+}
+
+// ---- 操作可见性(光标与 UI 同步) ----
+// 让队友能看到:你的光标在哪、你打开了什么窗口(背包/机器/箱子...)
+message CursorPos {
+  int32 player_id = 1;
+  float nx = 2;      // 归一化屏幕坐标 0-1(不受分辨率差异影响)
+  float ny = 3;
+}
+
+message UiEvent {
+  int32 player_id = 1;
+  string window_path = 2;   // 窗口 GameObject 场景路径(双方场景一致,可据此定位)
+  string window_title = 3;  // 标题(调试用)
+  bool open = 4;            // true=打开 false=关闭
+}
+
+// ---- 点击特效 ----
+message ClickFx {
+  int32 player_id = 1;
+  float nx = 2;      // 归一化屏幕坐标 0-1
+  float ny = 3;
+}
+
+// ---- 游戏事件同步(叫号/开门/结束一天) ----
+message GameEvent {
+  int32 player_id = 1;
+  string kind = 2;   // "call_next" | "open_shutter" | "end_day"
+}
+
+// ---- 拖拽状态(仅视觉:队友拖了什么) ----
+message DragState {
+  int32 player_id = 1;
+  bool dragging = 2;        // true=开始拖拽 false=放下
+  string item_hint = 3;     // 物品提示(可空)
+  float nx = 4;             // 归一化坐标(开始位置)
+  float ny = 5;
+}
+
+// ---- 天同步 ----
+message DaySync {
+  int32 player_id = 1;
+  int32 day = 2;     // 玩家当前天数(商店 dayCounter)
+}
+
+// ---- 顾客队列同步(同一批顾客) ----
+message ClientQueueSync {
+  int32 player_id = 1;
+  repeated string client_ids = 2;   // 队列顾客 identifier 列表(顺序一致)
+  int32 day = 3;                    // 快照所属天数(调试用)
+}
+
+// ---- 店铺快照(同店铺:房主权威) ----
+message ServiceState {
+  string id = 1;
+  bool unlocked = 2;
+  bool is_using = 3;
+}
+message ReputationState {
+  string faction_id = 1;
+  int32 strength = 2;
+  int32 influence = 3;
+}
+message ItemState {
+  string id = 1;
+  int32 count = 2;
+}
+message StoreSnapshot {
+  int32 player_id = 1;
+  int32 cash = 2;
+  int32 day = 3;                    // StoreStation.dayCounter
+  int32 day_until_rent = 4;
+  int32 rent_value = 5;
+  int32 day_until_loan = 6;
+  int32 loan_value = 7;
+  int32 retail_markup = 8;
+  int32 contr_low = 9;
+  int32 contr_mid = 10;
+  int32 contr_high = 11;
+  int32 contr_critical = 12;
+  int32 base_attractiveness = 13;
+  int32 projector_bonus = 14;
+  int32 dealmaker_bonus = 15;
+  int32 garbage_level = 16;
+  bool is_power_on = 17;
+  int32 machinery_bought = 18;
+  repeated ServiceState services = 19;
+  repeated ReputationState reputations = 20;
+  string cassette_inv_json = 21;    // 磁带机库存(游戏原生序列化格式)
+  string vending_inv_json = 22;     // 售货机库存
+  repeated ItemState items = 23;    // 持有物品(id + 数量)
+}
+
+// ---- 店内物件交互(P0 可见性) ----
+message ObjectUse {
+  int32 player_id = 1;
+  string kind = 2;    // recorder / vending_machine / phone / poster / lamp / display / credit / bell / fountain
+  float nx = 3;       // 物件屏幕位置(归一化,用于对端画高亮)
+  float ny = 4;
+}
+
+// ---- 电话同步(界面镜像 + 通话可见) ----
+message PhoneSync {
+  int32 player_id = 1;
+  string kind = 2;    // open / close / book_open / book_close / call / hangup
+  int64 number = 3;   // 被叫号码(kind=call 时,与游戏内 StorePhoneClient 号码一致)
+}
