@@ -76,7 +76,7 @@ public static class CustomerQueueSync
             _lastSentHash = hash;
 
             CoopClient.Net.Send(MsgType.ClientQueueSync, msg);
-            Plugin.Log.LogInfo($"[Coop] 本地上报顾客队列: {msg.ClientIds.Count} 位 [{hash}]");
+            CoopLog.Detail($"[Coop] 本地上报顾客队列: {msg.ClientIds.Count} 位 [{hash}]");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 队列快照发送异常: {e.Message}"); }
     }
@@ -143,7 +143,7 @@ public static class CustomerQueueSync
             }
             finally { ApplyingHostQueue = false; }
 
-            Plugin.Log.LogInfo($"[Coop] 已同步队友顾客队列: {fresh.Count} 位 [{sb}]");
+            CoopLog.Info($"[Coop] 已同步队友顾客队列: {fresh.Count} 位 [{sb}]");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 队列同步应用异常: {e.Message}"); }
     }
@@ -162,7 +162,7 @@ public static class CustomerQueueSync
                 CustomerId = id,
                 Reason = reason ?? "left",
             });
-            Plugin.Log.LogInfo($"[Coop] 顾客成交离店上报: {id} ({reason})");
+            CoopLog.Info($"[Coop] 顾客成交离店上报: {id} ({reason})");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 顾客离店上报失败: {e.Message}"); }
     }
@@ -183,10 +183,10 @@ public static class CustomerQueueSync
                 if (id != msg.CustomerId) continue;
                 ApplyingHostQueue = true;
                 try { cur.RemoveAt(i); } finally { ApplyingHostQueue = false; }
-                Plugin.Log.LogInfo($"[Coop] 已同步队友端顾客离店: {id}(本地队列剩 {cur.Count} 位)");
+                CoopLog.Info($"[Coop] 已同步队友端顾客离店: {id}(本地队列剩 {cur.Count} 位)");
                 return;
             }
-            Plugin.Log.LogInfo($"[Coop] 队友端顾客离店 {msg.CustomerId}(本地队列未见,应已一致)");
+            CoopLog.Info($"[Coop] 队友端顾客离店 {msg.CustomerId}(本地队列未见,应已一致)");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 顾客离店应用异常: {e.Message}"); }
     }
