@@ -54,6 +54,83 @@ public static class FriendCursor
     private static float _curX, _curY;      // 当前渲染位置(屏幕像素)
     private static bool _hasTarget;
 
+    // ---------- 拖动轨迹(队友拖动物品时显示一条淡出的路径) ----------
+    private const int TrailLen = 18;
+    private const float TrailLife = 1.3f;
+    private static Image[] _trail;
+    private static Vector3[] _trailPos;
+    private static float[] _trailAt;
+    private static int _trailHead;
+    private static bool _dragging;
+    private static Vector3 _trailLast;
+    private static float _trailLastAt;
+
+    static void EnsureTrail()
+    {
+        if (_trail != null || _root == null) return;
+        _trail = new Image[TrailLen];
+        _trailPos = new Vector3[TrailLen];
+        _trailAt = new float[TrailLen];
+        for (int i = 0; i < TrailLen; i++)
+        {
+            var go = new GameObject("trail" + i);
+            go.transform.SetParent(_root.transform, false);
+            var img = go.AddComponent<Image>();
+            img.raycastTarget = false;
+            img.color = new Color(1f, 0.85f, 0.35f, 0f);
+            var rt = go.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(9f, 9f);
+            go.SetActive(false);
+            _trail[i] = img;
+        }
+    }
+
+    static void PushTrail(float px, float py)
+    {
+        EnsureTrail();
+        if (_trail == null) return;
+        float now = Time.unscaledTime;
+        if (now - _trailLastAt < 0.04f
+            && Mathf.Abs(px - _trailLast.x) < 14f && Mathf.Abs(py - _trailLast.y) < 14f) return;
+        _trailHead = (_trailHead + 1) % TrailLen;
+        _trailPos[_trailHead] = new Vector3(px, py, 0f);
+        _trailAt[_trailHead] = now;
+        _trailLast = new Vector3(px, py, 0f);
+        _trailLastAt = now;
+    }
+
+    static void TickTrail()
+    {
+        if (_trail == null) return;
+        float now = Time.unscaledTime;
+        for (int i = 0; i < TrailLen; i++)
+        {
+            var img = _trail[i];
+            if (img == null) continue;
+            float age = now - _trailAt[i];
+            if (_trailAt[i] <= 0f || age > TrailLife)
+            {
+                if (img.gameObject.activeSelf) img.gameObject.SetActive(false);
+                continue;
+            }
+            var c = img.color;
+            c.a = Mathf.Clamp01(1f - age / TrailLife) * 0.55f;
+            img.color = c;
+            img.transform.position = _trailPos[i];
+            if (!img.gameObject.activeSelf) img.gameObject.SetActive(true);
+        }
+    }
+
+    static void ClearTrail()
+    {
+        if (_trail == null) return;
+        for (int i = 0; i < TrailLen; i++)
+        {
+            _trailAt[i] = 0f;
+            if (_trail[i] != null && _trail[i].gameObject.activeSelf) _trail[i].gameObject.SetActive(false);
+        }
+    }
+
     public static void SetPeerName(string name)
     {
         if (string.IsNullOrEmpty(name)) return;
@@ -81,6 +158,7 @@ public static class FriendCursor
                 _hasTarget = true;
             }
             _tgtX = px; _tgtY = py;
+            if (_dragging) PushTrail(px, py);   // 拖动中:记录轨迹点
             ApplyPos(_curX, _curY);   // 立即应用一次(屏幕尺寸变化时也能跟上)
         }
         catch (Exception e)
@@ -108,6 +186,7 @@ public static class FriendCursor
                 _curX += dx * k; _curY += dy * k;
             }
             ApplyPos(_curX, _curY);
+            TickTrail();
         }
         catch { }
     }
@@ -128,6 +207,8 @@ public static class FriendCursor
         try
         {
             if (_dragGhost == null) return;
+            _dragging = dragging;
+            if (!dragging) ClearTrail();
             _dragGhost.SetActive(dragging && _visible);
             if (_dragLabel != null)
                 _dragLabel.text = string.IsNullOrEmpty(hint) ? "拖动中…" : ("拖动中: " + hint);
@@ -141,6 +222,8 @@ public static class FriendCursor
         {
             if (_root != null) { _root.SetActive(false); _visible = false; }
             if (_dragGhost != null) _dragGhost.SetActive(false);
+            _dragging = false;
+            ClearTrail();
         }
         catch { }
     }
@@ -208,7 +291,7 @@ public static class FriendCursor
         _root.SetActive(false);   // 收到第一个远端光标前不显示
         _visible = false;
         _created = true;
-        Plugin.Log.LogInfo("[Coop] 朋友光标(图标+名字)已创建(等待远端光标)");
+        CoopLog.Info("[Coop] 朋友光标(图标+名字)已创建(等待远端光标)");
     }
 
     private static Sprite BuildCursorSprite()
