@@ -16,6 +16,14 @@ namespace ProbablyStolenCoop;
 /// </summary>
 public static class StoreStateSync
 {
+    /// <summary>
+    /// 旧的"按 id+数量补发/扣除"物品同步开关。
+    /// ⚠️ 已停用: 它用 UncheckedAccept(自动找第一个空格)会把物品堆在左上角、破坏布局
+    /// (真人测试反馈)。初始状态现在由"直接载入房主的存档"保证一致;
+    /// 联机过程中的物品变化将改用"非破坏性、按物品移动"的新方案。
+    /// </summary>
+    public static bool SyncItemCounts = false;
+
     private static string _lastHash = "";
     private static int _tick;
     private static bool _forceSend;
@@ -258,11 +266,18 @@ public static class StoreStateSync
             catch { }
 
             // ---- 物品:数量对齐(补缺失 + 扣多余) ----
+            // ⚠️ 已停用(2026-10-15): 现在初始状态由"直接用房主的存档"保证一致,
+            // 而这套"按 id+数量补发"用的是 UncheckedAccept(自动找第一个空格),
+            // 会把物品**堆在左上角**且破坏布局 —— 正是真人测试反馈的问题。
+            // 联机过程中的物品变化改用"非破坏性、按物品移动"的新方案(待实现)。
+            // 物品计数:仅当旧同步开启时才统计(默认关闭,恒为 0)
             int granted = 0, removed = 0, missing = 0;
-            try
+            if (SyncItemCounts)
             {
-                var own = ps.FindAllItem(true);
-                var localCount = new Dictionary<string, int>();
+                try
+                {
+                    var own = ps.FindAllItem(true);
+                    var localCount = new Dictionary<string, int>();
                 if (own != null)
                     for (int i = 0; i < own.Count; i++)
                     {
@@ -305,8 +320,9 @@ public static class StoreStateSync
                 }
                 if (granted > 0 || removed > 0 || missing > 0)
                     CoopLog.Info($"[Coop] 物品数量对齐: 补发 {granted}, 扣除 {removed}, 缺失 {missing}");
+                }
+                catch { }
             }
-            catch { }
 
             // 防回环:应用后刷新本地上报基线(否则"应用产生的变化"会被当成自己的变化再广播回去)
             try { _lastHash = Hash(Capture(ps)); } catch { }
