@@ -31,6 +31,9 @@ echo [信息] 游戏目录: !GAME!
 echo [1/3] 正在复制运行环境，约 150MB，请稍候...
 xcopy /E /I /Y "%SRC%\dotnet" "!GAME!\dotnet" >nul 2>&1
 if errorlevel 1 goto COPY_FAIL
+rem --- 保留玩家已有配置(昵称/开关);新配置项由插件启动时自动补全 ---
+set "KEEP=%TEMP%\coop_cfg_keep.ini"
+if exist "!GAME!\BepInEx\config\com.questinggoose.probablystolen.coop.cfg" copy /Y "!GAME!\BepInEx\config\com.questinggoose.probablystolen.coop.cfg" "!KEEP!" >nul 2>&1
 xcopy /E /I /Y "%SRC%\BepInEx" "!GAME!\BepInEx" >nul 2>&1
 if errorlevel 1 goto COPY_FAIL
 copy /Y "%SRC%\winhttp.dll" "!GAME!\" >nul 2>&1
@@ -38,9 +41,12 @@ if errorlevel 1 goto COPY_FAIL
 copy /Y "%SRC%\doorstop_config.ini" "!GAME!\" >nul 2>&1
 if errorlevel 1 goto COPY_FAIL
 
+if exist "%TEMP%\coop_cfg_keep.ini" copy /Y "%TEMP%\coop_cfg_keep.ini" "!GAME!\BepInEx\config\com.questinggoose.probablystolen.coop.cfg" >nul 2>&1
+
 echo [2/3] 校验安装文件...
 if not exist "!GAME!\BepInEx\plugins\ProbablyStolenCoop.dll" goto COPY_FAIL
 if not exist "!GAME!\winhttp.dll" goto COPY_FAIL
+if exist "%~dp0VERSION.txt" type "%~dp0VERSION.txt"
 echo [3/3] 安装完成！
 echo.
 echo ================================================
