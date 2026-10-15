@@ -97,6 +97,23 @@ def main():
     with open(os.path.join(cfg_dir, 'com.questinggoose.probablystolen.coop.cfg'), 'w', encoding='utf-8') as f:
         f.write(CFG_TEMPLATE.format(host=HOST, port=PORT, wss=WSS))
 
+    # BepInEx 主配置: 关闭调试控制台窗口(玩家环境不需要黑窗)
+    import re as _re
+    bep_src = os.path.join(GAME, 'BepInEx', 'config', 'BepInEx.cfg')
+    if os.path.isfile(bep_src):
+        txt = open(bep_src, encoding='utf-8').read()
+
+        def _fix(seg):
+            return _re.sub(r'(?m)^(Enabled\s*=\s*)true', r'\1false', seg.group(0), count=1)
+
+        txt = _re.sub(r'\[Logging\.Console\][\s\S]*?(?=\n\[|$)', _fix, txt, count=1)
+        with open(os.path.join(cfg_dir, 'BepInEx.cfg'), 'w', encoding='utf-8') as f:
+            f.write(txt)
+        print('      BepInEx.cfg 已写入(关闭控制台窗口)')
+    else:
+        with open(os.path.join(cfg_dir, 'BepInEx.cfg'), 'w', encoding='utf-8') as f:
+            f.write('[Logging.Console]\n\n## Enables showing a console for log output.\n# Setting type: Boolean\n# Default value: true\nEnabled = false\n')
+
     for f in ('install.bat', 'uninstall.bat'):
         shutil.copy2(os.path.join(HERE, f), stage)
 
