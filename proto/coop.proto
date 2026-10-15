@@ -245,8 +245,10 @@ message CustomerLeft {
 message ObjectUse {
   int32 player_id = 1;
   string kind = 2;    // recorder / vending_machine / phone / poster / lamp / display / credit / bell / fountain
+                      // 追加: container_open / container_close(打开/关闭某个物品的容器)
   float nx = 3;       // 物件屏幕位置(归一化,用于对端画高亮)
   float ny = 4;
+  string item_id = 5; // kind=container_* 时:物品 identifier(对端打开它自己那份同 ID 物品的容器)
 }
 
 // ---- 电话同步(界面镜像 + 通话可见) ----
