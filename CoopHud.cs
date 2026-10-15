@@ -21,12 +21,27 @@ public static class CoopHud
     /// 想恢复左上 HUD 和顶部提示时改回 true 即可</summary>
     public static bool TextEnabled = false;
 
+    /// <summary>游戏内角落房间码(独立开关,不受 TextEnabled 影响):只一行小字,方便随时报码</summary>
+    public static bool ShowRoomCode = true;
+
+    private static GameObject _codeRoot;
+    private static Text _codeText;
+
     public static void Tick()
     {
         try
         {
-            bool show = TextEnabled && !string.IsNullOrEmpty(CoopClient.RoomCode) && GameMaster.current != null;
             EnsureCreated();
+            EnsureCodeCreated();
+
+            // ---- 角落房间码(独立于文字总开关:只显示"房间 XXXX"一行小字) ----
+            bool inScene = GameMaster.current != null;
+            string rc = CoopClient.RoomCode;
+            bool showCode = ShowRoomCode && !string.IsNullOrEmpty(rc) && inScene;
+            if (_codeRoot != null && _codeRoot.activeSelf != showCode) _codeRoot.SetActive(showCode);
+            if (showCode && _codeText != null) _codeText.text = "房间 " + rc;
+
+            bool show = TextEnabled && !string.IsNullOrEmpty(rc) && inScene;
             if (_root == null) return;
             if (_root.activeSelf != show) _root.SetActive(show);
             if (!show) return;
@@ -116,6 +131,37 @@ public static class CoopHud
 
         _root.SetActive(false);   // 有房间且进店铺场景后才显示
         _created = true;
-        Plugin.Log.LogInfo("[Coop] 共享 HUD(房间/天数/提示)已创建");
+        CoopLog.Info("[Coop] 共享 HUD(房间/天数/提示)已创建");
+    }
+
+    /// <summary>角落房间码:独立 Canvas,一行小字,半透明(不打扰)</summary>
+    private static void EnsureCodeCreated()
+    {
+        if (_codeRoot != null) return;
+        _codeRoot = new GameObject("CoopRoomCode");
+        UnityEngine.Object.DontDestroyOnLoad(_codeRoot);
+        var canvas = _codeRoot.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 31900;
+
+        var go = new GameObject("code");
+        go.transform.SetParent(_codeRoot.transform, false);
+        _codeText = go.AddComponent<Text>();
+        _codeText.font = CoopUI.GetFont();
+        _codeText.text = "";
+        _codeText.fontSize = 13;
+        _codeText.color = new Color(1f, 1f, 1f, 0.42f);   // 半透明,尽量不打扰
+        _codeText.alignment = TextAnchor.UpperLeft;
+        _codeText.raycastTarget = false;
+        var ol = go.AddComponent<Outline>();
+        ol.effectColor = new Color(0f, 0f, 0f, 0.55f);
+        ol.effectDistance = new Vector2(1f, -1f);
+        var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0f, 0f);   // 左下角(店铺左下是地面,不挡 UI)
+        rt.anchorMax = new Vector2(0f, 0f);
+        rt.pivot = new Vector2(0f, 0f);
+        rt.sizeDelta = new Vector2(220f, 20f);
+        rt.anchoredPosition = new Vector2(14f, 10f);
+        _codeRoot.SetActive(false);
     }
 }
