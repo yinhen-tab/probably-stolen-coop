@@ -122,12 +122,14 @@ def main():
             return _re.sub(r'(?m)^(Enabled\s*=\s*)true', r'\1false', seg.group(0), count=1)
 
         txt = _re.sub(r'\[Logging\.Console\][\s\S]*?(?=\n\[|$)', _fix, txt, count=1)
+        # 日志优化:不再把 Unity 自身日志并入 BepInEx(字体警告等噪音与额外开销)
+        txt = _re.sub(r'(?m)^UnityLogListening\s*=\s*true', 'UnityLogListening = false', txt)
         with open(os.path.join(cfg_dir, 'BepInEx.cfg'), 'w', encoding='utf-8') as f:
             f.write(txt)
-        print('      BepInEx.cfg 已写入(关闭控制台窗口)')
+        print('      BepInEx.cfg 已写入(关闭控制台窗口 + 不并入 Unity 日志)')
     else:
         with open(os.path.join(cfg_dir, 'BepInEx.cfg'), 'w', encoding='utf-8') as f:
-            f.write('[Logging.Console]\n\n## Enables showing a console for log output.\n# Setting type: Boolean\n# Default value: true\nEnabled = false\n')
+            f.write('[Logging]\n\nUnityLogListening = false\n\n[Logging.Console]\n\n## Enables showing a console for log output.\n# Setting type: Boolean\n# Default value: true\nEnabled = false\n')
 
     for f in ('install.bat', 'uninstall.bat'):
         shutil.copy2(os.path.join(HERE, f), stage)
