@@ -1,0 +1,10 @@
+services:
+  coop-server:
+    build: .
+    container_name: probably-stolen-coop
+    restart: unless-stopped
+    ports:
+      - "27500:27500"
+    environment:
+      - COOP_HOST=0.0.0.0
+      - COOP_PORT=27500
