@@ -55,7 +55,7 @@ public static class StoreStateSync
             _forceAuth = false;
 
             CoopClient.Net.Send(MsgType.ShopSnapshot, msg);
-            Plugin.Log.LogInfo($"[Coop] 上报店铺快照{(auth ? "(权威对齐)" : "")}: 资金={msg.Cash} 第{msg.Day}天 服务={msg.Services.Count} 物品={msg.Items.Count}种");
+            CoopLog.Detail($"[Coop] 上报店铺快照{(auth ? "(权威对齐)" : "")}: 资金={msg.Cash} 第{msg.Day}天 服务={msg.Services.Count} 物品={msg.Items.Count}种");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 店铺快照发送异常: {e.Message}"); }
     }
@@ -304,14 +304,14 @@ public static class StoreStateSync
                     if (ItemGrant.TryRemove(kv.Key, kv.Value)) removed += kv.Value;
                 }
                 if (granted > 0 || removed > 0 || missing > 0)
-                    Plugin.Log.LogInfo($"[Coop] 物品数量对齐: 补发 {granted}, 扣除 {removed}, 缺失 {missing}");
+                    CoopLog.Info($"[Coop] 物品数量对齐: 补发 {granted}, 扣除 {removed}, 缺失 {missing}");
             }
             catch { }
 
             // 防回环:应用后刷新本地上报基线(否则"应用产生的变化"会被当成自己的变化再广播回去)
             try { _lastHash = Hash(Capture(ps)); } catch { }
 
-            Plugin.Log.LogInfo($"[Coop] 已同步店铺: 资金 {cashBefore}→{newCash}{(m.Authoritative ? " (权威对齐)" : " (增量)")} 服务变更={svcChanged} 补={granted} 扣={removed} 缺={missing}");
+            CoopLog.Info($"[Coop] 已同步店铺: 资金 {cashBefore}→{newCash}{(m.Authoritative ? " (权威对齐)" : " (增量)")} 服务变更={svcChanged} 补={granted} 扣={removed} 缺={missing}");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 店铺快照应用异常: {e.Message}"); }
     }
