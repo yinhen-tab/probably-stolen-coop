@@ -944,6 +944,25 @@ public static class CoopClient
         catch (Exception e) { CoopLog.Warn($"[Coop][存档] 分片发送失败: {e.Message}"); }
     }
 
+    /// <summary>界面同步(通用):open=true/false,key=界面键(见 UiWindowSync 表)</summary>
+    public static void SendUiWindow(bool open, string key, string itemId, int idx = -1, string itemId2 = "")
+    {
+        if (Net == null || !Handshaked || string.IsNullOrEmpty(RoomCode)) return;
+        try
+        {
+            Net.Send(MsgType.ObjectUse, new Coop.ObjectUse
+            {
+                PlayerId = PlayerId,
+                Kind = open ? "wnd_open" : "wnd_close",
+                ItemId = itemId ?? "",
+                Arg = key ?? "",
+                Idx = idx,
+                ItemId2 = itemId2 ?? "",
+            });
+        }
+        catch (Exception e) { CoopLog.Warn($"[Coop] 界面发送失败: {e.Message}"); }
+    }
+
     /// <summary>执行远端 UI 事件(主线程;期间置 ApplyingRemote 防回环上报)</summary>
     static void ApplyRemoteUiEvent(UiEvent ev)
     {
