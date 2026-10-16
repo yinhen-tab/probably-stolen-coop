@@ -342,7 +342,8 @@ public static class CoopClient
                 string hint = d.ItemHint;
                 int duid = d.UniqueId;
                 string dident = d.Identifier;
-                RunOnMain(() => FriendCursor.SetDragging(dragging, hint, duid, dident));
+                float dnx = d.Nx, dny = d.Ny;
+                RunOnMain(() => FriendCursor.SetDragging(dragging, hint, duid, dident, dnx, dny));
                 break;
             }
             case MsgType.CustomerLeft:
@@ -579,6 +580,7 @@ public static class CoopClient
 
             // ---- 物品位置(只同步被移动的那一件) ----
             ItemMoveSync.TickCapture();
+            DragSync.TickSend();      // 拖动中:持续上报被拖物品的位移
 
             // ---- 容器窗口位置(队友拖动容器窗口) ----
             ObjectUseSync.TickWindow();
@@ -1232,13 +1234,18 @@ public static class CoopClient
         catch { }
     }
 
-    public static void SendDrag(bool dragging, string hint, int uid = 0, string ident = "")
+    public static void SendDrag(bool dragging, string hint, int uid = 0, string ident = "",
+                                float nx = 0f, float ny = 0f)
     {
         if (Net == null || !Handshaked || string.IsNullOrEmpty(RoomCode)) return;
         try
         {
             Net.Send(MsgType.DragState, new DragState
-            { Dragging = dragging, ItemHint = hint ?? "", UniqueId = uid, Identifier = ident ?? "" });
+            {
+                Dragging = dragging, ItemHint = hint ?? "", UniqueId = uid, Identifier = ident ?? "",
+                // 拖动期间用它传【被拖物品的归一化屏幕位置】(对端只取增量,不依赖绝对坐标)
+                Nx = nx, Ny = ny,
+            });
         }
         catch { }
     }
