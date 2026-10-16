@@ -44,6 +44,50 @@ public static class WindowSync
         }
     }
 
+    // ---- 窗口实例登记表 ----
+    // 为什么需要:远端只能给我们"路径 + 标题"字符串,而 PixelWindow 不是 UnityEngine.Object,
+    // 没法用 FindObjectsOfTypeAll 全量扫描(而且窗口往往是懒创建的,没打开过就不存在)。
+    // 于是改为:本端每次 Show/Hide 都登记一次实例,远端事件到达时先查这张表。
+    private static readonly System.Collections.Generic.Dictionary<string, PixelWindow> _byTitle = new();
+    private static readonly System.Collections.Generic.Dictionary<string, PixelWindow> _byPath = new();
+
+    /// <summary>登记窗口实例(Show/Hide 钩子调用)</summary>
+    public static void Register(PixelWindow w)
+    {
+        if (w == null) return;
+        try
+        {
+            string t = "";
+            try { t = (w.titleString ?? "").Trim(); } catch { }
+            if (!string.IsNullOrEmpty(t)) _byTitle[t] = w;
+            var rt = w.rectTransform;
+            if (rt != null)
+            {
+                string p = GetPath(rt);
+                if (!string.IsNullOrEmpty(p)) _byPath[p] = w;
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>按标题取已登记的窗口实例</summary>
+    public static PixelWindow FindRegistered(string title)
+    {
+        if (string.IsNullOrEmpty(title)) return null;
+        PixelWindow w = null;
+        if (_byTitle.TryGetValue(title.Trim(), out w) && w != null) return w;
+        return null;
+    }
+
+    /// <summary>按场景路径取已登记的窗口实例</summary>
+    public static PixelWindow FindRegisteredByPath(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return null;
+        PixelWindow w = null;
+        if (_byPath.TryGetValue(path, out w) && w != null) return w;
+        return null;
+    }
+
     /// <summary>场景路径(双方场景一致,可据此互相定位窗口)</summary>
     public static string GetPath(Transform t)
     {
@@ -63,17 +107,30 @@ public static class WindowSync
 [HarmonyPatch(typeof(PixelWindow), "Show", new Type[] { })]
 public static class PixelWindowShowPatch
 {
-    public static void Postfix(PixelWindow __instance) { WindowSync.Report(__instance, true); }
+    public static void Postfix(PixelWindow __instance)
+    {
+        WindowSync.Register(__instance);          // 登记实例(远端按标题/路径回查用)
+        WindowSync.Report(__instance, true);
+    }
 }
 
 [HarmonyPatch(typeof(PixelWindow), "Show", new[] { typeof(Vector2), typeof(Vector2), typeof(bool) })]
 public static class PixelWindowShow2Patch
 {
-    public static void Postfix(PixelWindow __instance) { WindowSync.Report(__instance, true); }
+    public static void Postfix(PixelWindow __instance)
+    {
+        WindowSync.Register(__instance);
+        WindowSync.Report(__instance, true);
+    }
 }
 
 [HarmonyPatch(typeof(PixelWindow), "Hide", new Type[] { })]
 public static class PixelWindowHidePatch
 {
-    public static void Postfix(PixelWindow __instance) { WindowSync.Report(__instance, false); }
+    public static void Postfix(PixelWindow __instance)
+    {
+        WindowSync.Register(__instance);
+        ObjectUseSync.OnWindowHidden(__instance);   // 容器窗口被关 → 上报关闭
+        WindowSync.Report(__instance, false);
+    }
 }
