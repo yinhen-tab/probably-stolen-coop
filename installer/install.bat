@@ -26,6 +26,21 @@ goto HAVE_GAME
 set GAME=!GAME:"=!
 if not exist "!GAME!\Probably Stolen.exe" goto NO_GAME
 
+rem --- 版本保护:拦住"旧包覆盖已装的新版本" ---
+set "PKGBUILD="
+if exist "%~dp0payload\build.txt" set /p PKGBUILD=<"%~dp0payload\build.txt"
+set "INSTBUILD="
+if exist "!GAME!\BepInEx\plugins\ProbablyStolenCoop.build.txt" set /p INSTBUILD=<"!GAME!\BepInEx\plugins\ProbablyStolenCoop.build.txt"
+if not "!PKGBUILD!"=="" if not "!INSTBUILD!"=="" if "!PKGBUILD!" LSS "!INSTBUILD!" (
+  echo.
+  echo [警告] 这个包是旧的^(构建 !PKGBUILD!^)
+  echo        你已安装的插件更新^(构建 !INSTBUILD!^)
+  echo        继续安装会把插件降级,通常不是你想要的。
+  echo.
+  set /p GO=仍要继续请输入 Y 再回车: 
+  if /i not "!GO!"=="Y" goto ABORT_OLD
+)
+
 echo.
 echo [信息] 游戏目录: !GAME!
 echo [1/3] 正在复制运行环境，约 150MB，请稍候...
@@ -42,6 +57,8 @@ copy /Y "%SRC%\doorstop_config.ini" "!GAME!\" >nul 2>&1
 if errorlevel 1 goto COPY_FAIL
 
 if exist "%TEMP%\coop_cfg_keep.ini" copy /Y "%TEMP%\coop_cfg_keep.ini" "!GAME!\BepInEx\config\com.questinggoose.probablystolen.coop.cfg" >nul 2>&1
+
+if not "!PKGBUILD!"=="" >"!GAME!\BepInEx\plugins\ProbablyStolenCoop.build.txt" echo !PKGBUILD!
 
 echo [2/3] 校验安装文件...
 if not exist "!GAME!\BepInEx\plugins\ProbablyStolenCoop.dll" goto COPY_FAIL
@@ -94,6 +111,14 @@ echo.
 echo [错误] 复制失败。可能的原因:
 echo        1. 游戏正在运行，请先完全退出游戏再重试
 echo        2. 权限不足，请右键 install.bat 选择以管理员身份运行
+echo.
+pause
+exit /b 1
+
+:ABORT_OLD
+echo.
+echo [已取消] 未安装旧包,当前插件保持不变。
+echo          请改用最新的一键安装包。
 echo.
 pause
 exit /b 1
