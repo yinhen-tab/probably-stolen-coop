@@ -91,6 +91,16 @@ public static class ObjectUseSync
                 UiWindowSync.Apply(msg);
                 return;
             }
+            if (msg.Kind == "event_on" || msg.Kind == "event_off")
+            {
+                StoreEventSync.Apply(msg);
+                return;
+            }
+            if (msg.Kind == "machine_start" || msg.Kind == "machine_done")
+            {
+                MachineSync.Apply(msg);
+                return;
+            }
 
             string cn = Names.TryGetValue(msg.Kind, out var c) ? c : msg.Kind;
             CoopLog.Detail($"[Coop] 队友使用了: {cn}");
