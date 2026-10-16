@@ -69,7 +69,7 @@ public static class ItemMoveSync
     /// 让物品"真的画到新位置":运行时物品是 GameItemElement(GameItem + PixelElement),
     /// 渲染靠 SetCenteredPosition —— 只改 modifiedShape 只动数据不动画面。
     /// </summary>
-    static bool PlaceVisual(GameItem it, Vector2 pixel)
+    public static bool PlaceVisual(GameItem it, Vector2 pixel)
     {
         try
         {
@@ -160,6 +160,7 @@ public static class ItemMoveSync
         {
             if (!Enabled) return;
             if (ApplyingRemote) return;
+            if (FriendCursor.IsDraggingPeer) return;   // 队友正在拖这件 → 位置由跟随驱动,别回传
             if (Time.time - _lastAt < Interval) return;
             if (CoopClient.Net == null || !CoopClient.Handshaked || string.IsNullOrEmpty(CoopClient.RoomCode)) return;
             if (GameMaster.current == null) return;   // 只在店铺场景
