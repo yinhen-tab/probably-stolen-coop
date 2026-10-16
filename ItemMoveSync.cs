@@ -271,6 +271,50 @@ public static class ItemMoveSync
         catch (Exception e) { CoopLog.Warn($"[Coop] 物品移动上报失败: {e.Message}"); }
     }
 
+    private static GameInventory _hlInv;      // 上次高亮用的库存(换个库存时先清旧的)
+    private static bool _hlOn;
+
+    /// <summary>
+    /// 把物品**占用的格子**涂成绿色 —— 与游戏拖动时完全一致(用的是原生接口):
+    ///   TryInventorySlot(...) 让游戏自己算 slot,再 HighlightSlot(slot, Green)。
+    /// </summary>
+    static void HighlightOccupied(GameItem item)
+    {
+        try
+        {
+            if (item == null) return;
+            var inv = item.parentInventory;
+            if (inv == null) return;
+            if (_hlInv != null && _hlInv.Pointer != inv.Pointer)
+            {
+                try { _hlInv.ClearHighlight(); } catch { }
+            }
+            _hlInv = inv;
+            SlotMarker slot = null;
+            try { slot = inv.TryInventorySlot(item, item.modifiedShape, item.state); } catch { }
+            if (slot == null)
+            {
+                slot = new SlotMarker
+                {
+                    item = item, inventory = inv,
+                    itemGridShape = item.modifiedShape, index = 0,
+                };
+            }
+            inv.ClearHighlight();
+            inv.HighlightSlot(slot, RenderHandler.BackgroundColor.Green, false);
+            _hlOn = true;
+        }
+        catch (Exception e) { CoopLog.Detail($"[Coop] 高亮占用格失败: {e.Message}"); }
+    }
+
+    /// <summary>拖动结束:清掉绿色高亮</summary>
+    public static void ClearDragHighlight()
+    {
+        try { if (_hlInv != null) _hlInv.ClearHighlight(); } catch { }
+        _hlInv = null;
+        _hlOn = false;
+    }
+
     /// <summary>
     /// 拖动跟手:把物品挪到队友那边的**目标格**。
     /// 复用 ApplyRemote 的完整路径(改模型 GridShapeBuilder + 重绘),但:
@@ -301,6 +345,7 @@ public static class ItemMoveSync
                 InvUid = 0, UnitCount = -1, Durability = -1,
             });
             // 限流日志:证明"目标格 → 物品实际落到哪"(拖动期间 50ms 一次,不能全打)
+            HighlightOccupied(item);      // ★ 占用格涂绿(和原游戏拖动时一致)
             _dragApplyCount++;
             if (_dragApplyCount <= 3 || _dragApplyCount % 10 == 0)
                 CoopLog.Info($"[Coop][拖应用] #{_dragApplyCount} 目标格=({gx},{gy}) 物品={item.identifier} "
