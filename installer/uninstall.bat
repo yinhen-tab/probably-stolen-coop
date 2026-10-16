@@ -21,6 +21,7 @@ set GAME=!GAME:"=!
 if not exist "!GAME!\BepInEx\plugins\ProbablyStolenCoop.dll" goto NOT_INSTALLED
 del /Q "!GAME!\BepInEx\plugins\ProbablyStolenCoop.dll" >nul 2>&1
 del /Q "!GAME!\BepInEx\plugins\Google.Protobuf.dll" >nul 2>&1
+del /Q "!GAME!\BepInEx\plugins\ProbablyStolenCoop.build.txt" >nul 2>&1
 echo [完成] 联机插件已删除。
 echo        BepInEx 运行环境保留，不影响其他 Mod。
 echo        如需彻底清理，可手动删除游戏目录下的 BepInEx 与 dotnet 文件夹，
