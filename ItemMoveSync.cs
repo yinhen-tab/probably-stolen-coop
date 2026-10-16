@@ -24,6 +24,8 @@ public static class ItemMoveSync
         public int X, Y, O;
         public bool F;
         public int InvUid;      // 所在容器物品 uniqueId(0=主库存)
+        public int Count;       // 数量
+        public int Dur;         // 当前耐久(-1=该物品无耐久)
         public string Id;
     }
 
@@ -165,10 +167,17 @@ public static class ItemMoveSync
                 if (it == null) continue;
                 var sh = Placed(it);
                 if (sh == null) continue;
+                int cnt = -1, dur = -1;
+                try { cnt = it.unitCount; } catch { }
+                try
+                {
+                    if (DurabilityHelper.GetMaxDurability(it) > 0) dur = DurabilityHelper.GetRealDurability(it);
+                }
+                catch { }
                 cur[it.uniqueId] = new Node
                 {
                     X = sh.minX, Y = sh.minY, O = sh.orientation, F = sh.flipped,
-                    InvUid = OwnerUid(it), Id = it.identifier ?? "",
+                    InvUid = OwnerUid(it), Count = cnt, Dur = dur, Id = it.identifier ?? "",
                 };
             }
 
@@ -192,7 +201,8 @@ public static class ItemMoveSync
                 {
                     if (old.X == kv.Value.X && old.Y == kv.Value.Y
                         && old.O == kv.Value.O && old.F == kv.Value.F
-                        && old.InvUid == kv.Value.InvUid) continue;
+                        && old.InvUid == kv.Value.InvUid
+                        && old.Count == kv.Value.Count && old.Dur == kv.Value.Dur) continue;
                 }
                 Send(kv.Key, kv.Value);
                 _last[kv.Key] = kv.Value;
@@ -216,9 +226,13 @@ public static class ItemMoveSync
                 Orientation = n.O,
                 Flipped = n.F,
                 InvUid = n.InvUid,
+                UnitCount = n.Count,
+                Durability = n.Dur,
             });
-            CoopLog.Info($"[Coop] 本地上报物品移动: {n.Id} uid={uid} → ({n.X},{n.Y}) rot={n.O}"
-                         + (n.InvUid != 0 ? $" 容器={n.InvUid}" : ""));
+            CoopLog.Info($"[Coop] 本地上报物品变化: {n.Id} uid={uid} → ({n.X},{n.Y})"
+                         + (n.InvUid != 0 ? $" 容器={n.InvUid}" : "")
+                         + (n.Count >= 0 ? $" 数量={n.Count}" : "")
+                         + (n.Dur >= 0 ? $" 耐久={n.Dur}" : ""));
         }
         catch (Exception e) { CoopLog.Warn($"[Coop] 物品移动上报失败: {e.Message}"); }
     }
@@ -285,14 +299,46 @@ public static class ItemMoveSync
             var px = ToPixel(inv, sh, m.MinX, m.MinY);
             bool visOk = PlaceVisual(item, px);
 
+            // 3) 数量(队友用掉/取得了 → 本端跟着变)
+            bool cntOk = false, durOk = false;
+            if (m.UnitCount >= 0)
+            {
+                try
+                {
+                    if (item.unitCount != m.UnitCount) { item.SetUnitCount(m.UnitCount); cntOk = true; }
+                    else cntOk = true;
+                }
+                catch (Exception e) { CoopLog.Detail($"[Coop] 改数量失败: {e.Message}"); }
+            }
+            // 4) 耐久(磨损)
+            if (m.Durability >= 0)
+            {
+                try
+                {
+                    if (DurabilityHelper.GetMaxDurability(item) > 0
+                        && DurabilityHelper.GetRealDurability(item) != m.Durability)
+                    {
+                        DurabilityHelper.SetCurrentDurability(item, m.Durability);
+                        durOk = true;
+                    }
+                }
+                catch (Exception e) { CoopLog.Detail($"[Coop] 改耐久失败: {e.Message}"); }
+            }
+
             var now = Placed(item);
+            int nowCnt = -1, nowDur = -1;
+            try { nowCnt = item.unitCount; } catch { }
+            try { if (DurabilityHelper.GetMaxDurability(item) > 0) nowDur = DurabilityHelper.GetRealDurability(item); } catch { }
             if (now != null)
                 _last[m.UniqueId] = new Node
-                { X = now.minX, Y = now.minY, O = now.orientation, F = now.flipped, Id = item.identifier ?? "" };
+                { X = now.minX, Y = now.minY, O = now.orientation, F = now.flipped,
+                  InvUid = m.InvUid, Count = nowCnt, Dur = nowDur, Id = item.identifier ?? "" };
 
             CoopLog.Info($"[Coop] 已应用队友的物品移动: {item.identifier} uid={m.UniqueId} → ({m.MinX},{m.MinY}) "
                          + $"数据={(dataOk ? "改坐标" : "失败")} 画面={(visOk ? "已重绘" : "失败")}"
-                         + (m.InvUid != 0 ? $" 容器={m.InvUid}" : ""));
+                         + (m.InvUid != 0 ? $" 容器={m.InvUid}" : "")
+                         + (m.UnitCount >= 0 ? $" 数量→{m.UnitCount}" : "")
+                         + (m.Durability >= 0 ? $" 耐久→{m.Durability}({(durOk ? "已改" : "未变/失败")})" : ""));
             _rebuildBaseline = true;   // 下次采集只重建基线,不回传(避免自己应用的变化被当成自己的变化再发一轮)
         }
         catch (Exception e) { CoopLog.Warn($"[Coop] 物品移动应用异常: {e.Message}"); }
