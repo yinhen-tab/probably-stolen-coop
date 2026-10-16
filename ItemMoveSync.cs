@@ -23,6 +23,7 @@ public static class ItemMoveSync
     {
         public int X, Y, O;
         public bool F;
+        public int InvUid;      // 所在容器物品 uniqueId(0=主库存)
         public string Id;
     }
 
@@ -76,6 +77,36 @@ public static class ItemMoveSync
             return true;
         }
         catch (Exception e) { CoopLog.Detail($"[Coop] SetCenteredPosition 失败: {e.Message}"); return false; }
+    }
+
+    /// <summary>物品所在容器的容器物品 uniqueId(0=主库存/非物品容器)</summary>
+    static int OwnerUid(GameItem it)
+    {
+        try
+        {
+            var inv = it.parentInventory;
+            var p = inv != null ? inv.parent : null;
+            var owner = p != null ? p.TryCast<GameItem>() : null;
+            return owner != null ? owner.uniqueId : 0;
+        }
+        catch { return 0; }
+    }
+
+    /// <summary>找某个容器物品的内部库存(遍历它的子节点)</summary>
+    public static GameInventory ContentInvOf(GameItem container)
+    {
+        try
+        {
+            var ch = container != null ? container.children : null;
+            if (ch == null) return null;
+            for (int i = 0; i < ch.Count; i++)
+            {
+                var g = ch[i]?.TryCast<GameInventory>();
+                if (g != null) return g;
+            }
+        }
+        catch { }
+        return null;
     }
 
     /// <summary>全部物品(含容器内部的嵌套物品)</summary>
@@ -137,7 +168,7 @@ public static class ItemMoveSync
                 cur[it.uniqueId] = new Node
                 {
                     X = sh.minX, Y = sh.minY, O = sh.orientation, F = sh.flipped,
-                    Id = it.identifier ?? "",
+                    InvUid = OwnerUid(it), Id = it.identifier ?? "",
                 };
             }
 
@@ -160,7 +191,8 @@ public static class ItemMoveSync
                 if (_last.TryGetValue(kv.Key, out var old))
                 {
                     if (old.X == kv.Value.X && old.Y == kv.Value.Y
-                        && old.O == kv.Value.O && old.F == kv.Value.F) continue;
+                        && old.O == kv.Value.O && old.F == kv.Value.F
+                        && old.InvUid == kv.Value.InvUid) continue;
                 }
                 Send(kv.Key, kv.Value);
                 _last[kv.Key] = kv.Value;
@@ -183,8 +215,10 @@ public static class ItemMoveSync
                 MinY = n.Y,
                 Orientation = n.O,
                 Flipped = n.F,
+                InvUid = n.InvUid,
             });
-            CoopLog.Info($"[Coop] 本地上报物品移动: {n.Id} uid={uid} → ({n.X},{n.Y}) rot={n.O}");
+            CoopLog.Info($"[Coop] 本地上报物品移动: {n.Id} uid={uid} → ({n.X},{n.Y}) rot={n.O}"
+                         + (n.InvUid != 0 ? $" 容器={n.InvUid}" : ""));
         }
         catch (Exception e) { CoopLog.Warn($"[Coop] 物品移动上报失败: {e.Message}"); }
     }
@@ -209,7 +243,30 @@ public static class ItemMoveSync
             var sh = Placed(item);
             if (sh == null) return;
 
+            // 0) 跨容器:队友把物品换到别的容器了 → 本端也跟着换
+            bool moved = true;
+            try
+            {
+                var wantInv = m.InvUid != 0
+                    ? ContentInvOf(FindItem(m.InvUid))
+                    : ItemGrant.FindPlayerInventoryPublic();
+                var curInv = item.parentInventory;
+                if (wantInv != null && curInv != null && curInv.Pointer != wantInv.Pointer)
+                {
+                    int n = GraphUtils.TryAccept(wantInv.Cast<GraphNodeStorage>(), item);
+                    if (n <= 0)
+                    {
+                        try { GraphUtils.EmporiumTryAdd(item); } catch { }
+                    }
+                    moved = true;
+                    CoopLog.Info($"[Coop] 物品换容器: {item.identifier} → 容器 {m.InvUid}(TryAccept={n})");
+                }
+            }
+            catch (Exception e) { CoopLog.Detail($"[Coop] 换容器失败: {e.Message}"); moved = false; }
+
             // 1) 数据:改网格坐标(modifiedShape 返回的就是物品持有的对象,直接改字段)
+            sh = Placed(item);
+            if (sh == null) return;
             bool dataOk = false;
             try
             {
@@ -234,7 +291,8 @@ public static class ItemMoveSync
                 { X = now.minX, Y = now.minY, O = now.orientation, F = now.flipped, Id = item.identifier ?? "" };
 
             CoopLog.Info($"[Coop] 已应用队友的物品移动: {item.identifier} uid={m.UniqueId} → ({m.MinX},{m.MinY}) "
-                         + $"数据={(dataOk ? "改坐标" : "失败")} 画面={(visOk ? "已重绘" : "失败")}");
+                         + $"数据={(dataOk ? "改坐标" : "失败")} 画面={(visOk ? "已重绘" : "失败")}"
+                         + (m.InvUid != 0 ? $" 容器={m.InvUid}" : ""));
             _rebuildBaseline = true;   // 下次采集只重建基线,不回传(避免自己应用的变化被当成自己的变化再发一轮)
         }
         catch (Exception e) { CoopLog.Warn($"[Coop] 物品移动应用异常: {e.Message}"); }
