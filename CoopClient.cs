@@ -861,6 +861,10 @@ public static class CoopClient
     }
 
     /// <summary>上报本地电话操作(界面开关/拨打/挂断)</summary>
+    /// <summary>音效名单过滤(逗号分隔的关键词,匹配 identifier 子串)</summary>
+    public static string[] SfxFilter = new string[0];
+    public static bool SfxFilterIsWhitelist;
+
     public static void SendPhoneSync(string kind, long number, string arg = "", int index = -1)
     {
         if (Net == null || !Handshaked || string.IsNullOrEmpty(RoomCode)) return;
@@ -945,7 +949,8 @@ public static class CoopClient
     }
 
     /// <summary>界面同步(通用):open=true/false,key=界面键(见 UiWindowSync 表)</summary>
-    public static void SendUiWindow(bool open, string key, string itemId, int idx = -1, string itemId2 = "")
+    public static void SendUiWindow(bool open, string key, string itemId, int idx = -1, string itemId2 = "",
+                                    string t1 = "", string t2 = "", string t3 = "")
     {
         if (Net == null || !Handshaked || string.IsNullOrEmpty(RoomCode)) return;
         try
@@ -958,6 +963,9 @@ public static class CoopClient
                 Arg = key ?? "",
                 Idx = idx,
                 ItemId2 = itemId2 ?? "",
+                Text1 = t1 ?? "",
+                Text2 = t2 ?? "",
+                Text3 = t3 ?? "",
             });
         }
         catch (Exception e) { CoopLog.Warn($"[Coop] 界面发送失败: {e.Message}"); }
@@ -1353,6 +1361,13 @@ public static class CoopClient
         _cursorInterval = 1f / Math.Max(5, Math.Min(60, hz));
         CoopHud.ShowRoomCode = config.Bind("联机", "游戏内显示房间码", true, "true=游戏场景左下角显示一行半透明小字『房间 XXXX』,方便随时报码;false=完全不显示").Value;
         SaveTransfer.Enabled = config.Bind("联机", "使用房主的存档", true, "true(默认)=加入房间后直接载入房主的存档(世界状态完全一致);false=各自用自己的存档").Value;
+        SfxFilter = (config.Bind("联机", "音效名单(逗号分隔)", "",
+            "留空=不过滤。填关键词则按下面的模式过滤,例: ui_,hover,click").Value ?? "")
+            .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+        for (int i = 0; i < SfxFilter.Length; i++) SfxFilter[i] = SfxFilter[i].Trim().ToLower();
+        SfxFilterIsWhitelist = config.Bind("联机", "音效名单是白名单", false,
+            "false(默认)=黑名单(名单里的不播放);true=白名单(只播放名单里的)").Value;
+
         ItemMoveSync.Enabled = config.Bind("联机", "同步物品位置", true, "true(默认)=拖动/移动物品时,对方那里同一件物品也跟着换位置(只影响这一件)").Value;
         AutoTest = config.Bind("测试", "自动开局与回合测试", false, "诊断用:自动从主菜单开局并推进回合(正式联机请保持 false)").Value;
         // 自动加入码:优先环境变量,其次同目录测试文件 coop_test.txt(内容=房间码)
