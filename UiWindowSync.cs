@@ -20,7 +20,8 @@ public static class UiWindowSync
     private static readonly Dictionary<string, string> _lastItem = new();
 
     /// <summary>本地打开了某个界面</summary>
-    public static void ReportOpen(string key, GameItem item, GameItem item2 = null, int idx = -1)
+    public static void ReportOpen(string key, GameItem item, GameItem item2 = null, int idx = -1,
+                                  string t1 = "", string t2 = "", string t3 = "")
     {
         try
         {
@@ -30,7 +31,7 @@ public static class UiWindowSync
             string id = "";
             if (item != null) { id = item.identifier ?? ""; _lastItem[key] = id; }
             string id2 = item2 != null ? (item2.identifier ?? "") : "";
-            CoopClient.SendUiWindow(true, key, id, idx, id2);
+            CoopClient.SendUiWindow(true, key, id, idx, id2, t1, t2, t3);
             CoopLog.Info($"[Coop] 本地打开界面: {key}{(string.IsNullOrEmpty(id) ? "" : " (" + id + ")")}");
         }
         catch (Exception e) { CoopLog.Warn($"[Coop] 界面上报异常: {e.Message}"); }
@@ -73,7 +74,7 @@ public static class UiWindowSync
         WindowSync.ApplyingRemote = true;
         try
         {
-            if (!Dispatch(key, open, item, item2, msg.Idx))
+            if (!Dispatch(key, open, item, item2, msg.Idx, msg.Text1, msg.Text2, msg.Text3))
                 CoopLog.Detail($"[Coop] 界面同步: 未处理的界面键 {key}");
             else
                 CoopLog.Info($"[Coop] 已{(open ? "打开" : "关闭")}队友的界面: {key}");
@@ -87,8 +88,10 @@ public static class UiWindowSync
     }
 
     /// <summary>界面键 → 具体管理器(生成的 switch)</summary>
-    static bool Dispatch(string key, bool open, GameItem item, GameItem item2, int idx)
+    static bool Dispatch(string key, bool open, GameItem item, GameItem item2, int idx, string t1 = "", string t2 = "", string t3 = "")
     {
+        // 需要文本参数/要先设置状态的界面交给手写扩展
+        if (UiWindowCustom.Dispatch(key, open, item, idx, t1, t2, t3)) return true;
         switch (key)
         {
             case "chemfinisher":
@@ -224,13 +227,6 @@ public static class UiWindowSync
                 if (open) ui.OpenUI(); else ui.CloseUI();
                 return true;
             }
-            case "negociation":
-            {
-                var ui = NegociationUIManager.Instance;
-                if (ui == null) return false;
-                if (open) ui.OpenUI(); else ui.CloseUI();
-                return true;
-            }
             case "reputation":
             {
                 var ui = ReputationUIManager.Instance;
@@ -285,6 +281,41 @@ public static class UiWindowSync
                 var ui = RepublicLogoUIManager.Instance;
                 if (ui == null) return false;
                 if (open) ui.OpenPanel(); else ui.ClosePanel();
+                return true;
+            }
+            case "start_of_day":
+            {
+                var ui = StartOfDayUIManager.Instance;
+                if (ui == null) return false;
+                if (open) ui.OpenUI(); else ui.HideUI();
+                return true;
+            }
+            case "paper_book":
+            {
+                var ui = PaperUIManager.Instance;
+                if (ui == null) return false;
+                if (open) ui.OpenBook(item); else ui.CloseBook();
+                return true;
+            }
+            case "paper_slip":
+            {
+                var ui = PaperUIManager.Instance;
+                if (ui == null) return false;
+                if (open) ui.OpenSlipUI(item); else ui.CloseSlipUI();
+                return true;
+            }
+            case "paper_gen_slip":
+            {
+                var ui = PaperUIManager.Instance;
+                if (ui == null) return false;
+                if (open) ui.OpenGeneralSlipUI(item); else ui.CloseGeneralSlipUI();
+                return true;
+            }
+            case "paper_index":
+            {
+                var ui = PaperUIManager.Instance;
+                if (ui == null) return false;
+                if (open) ui.OpenIndex(); else ui.CloseIndex();
                 return true;
             }
             case "log":
@@ -451,12 +482,6 @@ public static class UiOpen_bargain
     public static void Postfix() { UiWindowSync.ReportOpen("bargain", null); }
 }
 
-[HarmonyPatch(typeof(NegociationUIManager), nameof(NegociationUIManager.OpenUI))]
-public static class UiOpen_negociation
-{
-    public static void Postfix() { UiWindowSync.ReportOpen("negociation", null); }
-}
-
 [HarmonyPatch(typeof(ReputationUIManager), nameof(ReputationUIManager.OpenUI))]
 public static class UiOpen_reputation
 {
@@ -503,6 +528,60 @@ public static class UiOpen_wild
 public static class UiOpen_republic_logo
 {
     public static void Postfix() { UiWindowSync.ReportOpen("republic_logo", null); }
+}
+
+[HarmonyPatch(typeof(StartOfDayUIManager), nameof(StartOfDayUIManager.OpenUI))]
+public static class UiOpen_start_of_day
+{
+    public static void Postfix() { UiWindowSync.ReportOpen("start_of_day", null); }
+}
+
+[HarmonyPatch(typeof(PaperUIManager), nameof(PaperUIManager.OpenBook))]
+public static class UiOpen_paper_book
+{
+    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("paper_book", a); }
+}
+
+[HarmonyPatch(typeof(PaperUIManager), nameof(PaperUIManager.CloseBook))]
+public static class UiClose_CloseBook
+{
+    public static void Postfix() { UiWindowSync.ReportClose("paper_book"); }
+}
+
+[HarmonyPatch(typeof(PaperUIManager), nameof(PaperUIManager.OpenSlipUI))]
+public static class UiOpen_paper_slip
+{
+    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("paper_slip", a); }
+}
+
+[HarmonyPatch(typeof(PaperUIManager), nameof(PaperUIManager.CloseSlipUI))]
+public static class UiClose_CloseSlipUI
+{
+    public static void Postfix() { UiWindowSync.ReportClose("paper_slip"); }
+}
+
+[HarmonyPatch(typeof(PaperUIManager), nameof(PaperUIManager.OpenGeneralSlipUI))]
+public static class UiOpen_paper_gen_slip
+{
+    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("paper_gen_slip", a); }
+}
+
+[HarmonyPatch(typeof(PaperUIManager), nameof(PaperUIManager.CloseGeneralSlipUI))]
+public static class UiClose_CloseGeneralSlipUI
+{
+    public static void Postfix() { UiWindowSync.ReportClose("paper_gen_slip"); }
+}
+
+[HarmonyPatch(typeof(PaperUIManager), nameof(PaperUIManager.OpenIndex))]
+public static class UiOpen_paper_index
+{
+    public static void Postfix() { UiWindowSync.ReportOpen("paper_index", null); }
+}
+
+[HarmonyPatch(typeof(PaperUIManager), nameof(PaperUIManager.CloseIndex))]
+public static class UiClose_CloseIndex
+{
+    public static void Postfix() { UiWindowSync.ReportClose("paper_index"); }
 }
 
 [HarmonyPatch(typeof(LogUIManager), nameof(LogUIManager.OpenUI))]
