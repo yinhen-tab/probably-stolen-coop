@@ -321,8 +321,9 @@ public static class FriendCursor
             _dragging = dragging;
             if (dragging)
             {
-                // 每次消息都刷新"队友那边物品现在在哪"(只当增量用)
-                _peerNx = nx; _peerNy = ny; _peerGot = true;
+                // 旧版的假象层跟随已废弃,这里不再接收屏幕坐标(nx<0 表示"没有")。
+                // 拖动跟随现在走 ItemMoveSync.ApplyDragTarget(目标格 → 改模型 + 重绘)。
+                if (nx >= 0f && ny >= 0f) { _peerNx = nx; _peerNy = ny; _peerGot = true; }
                 if (wasDragging) return;          // 已在拖动中:只更新位置,不要重置基准
             }
             if (dragging)
