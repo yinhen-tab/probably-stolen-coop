@@ -1428,7 +1428,7 @@ public static class CoopClient
         SfxFilterIsWhitelist = config.Bind("联机", "音效名单是白名单", false,
             "false(默认)=黑名单(名单里的不播放);true=白名单(只播放名单里的)").Value;
 
-        DragFollowExperimental = config.Bind("联机", "拖动跟随(实验性)", false,
+        DragFollowExperimental = config.Bind("联机", "拖动跟随(实验性)", true,
             "true=让被拖物品贴着对方光标走(未验证,可能出现位置偏差);false(默认)=拖动期间只显示\"拖动中\"提示,松手后物品落到正确位置").Value;
         ItemMoveSync.Enabled = config.Bind("联机", "同步物品位置", true, "true(默认)=拖动/移动物品时,对方那里同一件物品也跟着换位置(只影响这一件)").Value;
         AutoTest = config.Bind("测试", "自动开局与回合测试", false, "诊断用:自动从主菜单开局并推进回合(正式联机请保持 false)").Value;
