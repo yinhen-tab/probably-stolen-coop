@@ -112,6 +112,13 @@ public static class FriendCursor
             var ge = _dragItem.TryCast<GameItemElement>();
             if (ge == null) { Diag("跟随失败: 物品不是 GameItemElement"); return; }
             ge.SetCenteredPosition(target.x, target.y);
+            // SetCenteredPosition 只设目标值 → 必须再 UpdateRectTransform 才会真的画过去
+            bool moved = false;
+            try { ge.UpdateRectTransform(); moved = true; } catch { }
+            if (!moved)
+            {
+                try { var rtv = ge.rectTransform; if (rtv != null) rtv.anchoredPosition = target; } catch { }
+            }
             _followed = true;
         }
         catch { }
