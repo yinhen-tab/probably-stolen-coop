@@ -81,6 +81,25 @@ public static class PhoneSync
                         catch (Exception e) { CoopLog.Warn($"[Coop] 本地触发对话失败: {e.Message}"); }
                         break;
                     }
+                    // ---- 店内顾客对话(DialogUIManager;电话版是 DialoguePhoneUIManager) ----
+                    case "dlg2_choice":
+                        if (DialogUIManager.Instance != null && m.Index >= 0)
+                        {
+                            DialogUIManager.Instance.SelectChoice(m.Index);
+                            CoopLog.Info($"[Coop] 队友选了店内对话选项 {m.Index}(本端同步)");
+                        }
+                        break;
+                    case "dlg2_end":
+                        if (DialogUIManager.Instance != null)
+                        {
+                            DialogUIManager.Instance.HideAllDialogUI();
+                            CoopLog.Info("[Coop] 队友结束了店内对话");
+                        }
+                        break;
+                    case "dlg2_start":
+                        CoopLog.Info($"[Coop] 队友在与顾客对话({m.Arg})");
+                        break;
+
                     case "dlg_end":
                         if (DialoguePhoneUIManager.Instance != null)
                         {
@@ -189,4 +208,40 @@ public static class PhoneDialogChoicePatch
         CoopLog.Info($"[Coop] 本地选择了对话选项 {index}");
         PhoneSync.Report("dlg_choice", 0, "", index);
     }
+}
+
+// ---- 钩子:店内顾客对话 ----
+
+[HarmonyPatch(typeof(DialogUIManager), nameof(DialogUIManager.StartDialogue))]
+public static class StoreDialogStartPatch
+{
+    public static void Postfix(Dialogue dialogue)
+    {
+        string tag = "";
+        try
+        {
+            tag = dialogue?.title ?? "";
+            if (string.IsNullOrEmpty(tag)) tag = dialogue?.plainText ?? "";
+            if (tag != null && tag.Length > 30) tag = tag.Substring(0, 30);
+        }
+        catch { }
+        CoopLog.Info($"[Coop] 本地开始店内对话: {tag}");
+        PhoneSync.Report("dlg2_start", 0, tag ?? "");
+    }
+}
+
+[HarmonyPatch(typeof(DialogUIManager), nameof(DialogUIManager.SelectChoice))]
+public static class StoreDialogChoicePatch
+{
+    public static void Postfix(int index)
+    {
+        CoopLog.Info($"[Coop] 本地选择店内对话选项 {index}");
+        PhoneSync.Report("dlg2_choice", 0, "", index);
+    }
+}
+
+[HarmonyPatch(typeof(DialogUIManager), nameof(DialogUIManager.HideAllDialogUI))]
+public static class StoreDialogEndPatch
+{
+    public static void Postfix() { PhoneSync.Report("dlg2_end"); }
 }
