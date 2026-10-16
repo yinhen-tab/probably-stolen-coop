@@ -304,21 +304,16 @@ public static class ObjectUseSync
             }
             else
             {
-                // 关闭:用当前已打开的窗口(标题匹配)
-                try
+                // 关闭:按标题找本端那个窗口(PixelWindow 不是 UnityEngine.Object,
+                // 不能再走 FindObjectsOfTypeAll —— 用共用查找:登记表 + TreeNodeRender 反查)
+                string want = !string.IsNullOrEmpty(_remoteOpenTitle) ? _remoteOpenTitle : title;
+                var w = CoopClient.FindWindowByTitle(want);
+                if (w != null)
                 {
-                    var wins = Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<PixelWindow>());
-                    if (wins != null)
-                        for (int i = 0; i < wins.Length; i++)
-                        {
-                            var w = wins[i]?.TryCast<PixelWindow>();
-                            if (w == null) continue;
-                            string t = "";
-                            try { t = (w.titleString ?? "").Trim(); } catch { }
-                            if (!string.IsNullOrEmpty(t) && t == title) { w.Hide(); CoopLog.Info($"[Coop] 已关闭队友的容器: {title}"); break; }
-                        }
+                    w.Hide();
+                    CoopLog.Info($"[Coop] 已关闭队友的容器: {want}");
                 }
-                catch { }
+                else CoopLog.Warn($"[Coop] 关闭容器时没找到本端窗口: {want}");
             }
         }
         finally { ApplyingContainer = false; WindowSync.ApplyingRemote = prevWin; }
@@ -330,6 +325,47 @@ public static class ObjectUseSync
     public static void Tick()
     {
         try { PeerMarker.Tick(_markUntil); }
+        catch { }
+    }
+}
+
+// ================== 容器开关:本地双击物品打开内容窗 ==================
+// ⚠️ 这里曾经是整个功能不生效的根因:ReportContainer() 写好了却**没有任何地方调用它**,
+//    所以"我打开了容器"从来没发给过对方 → 对方既不弹窗口,也看不到里面的物品动。
+//    现在挂到游戏真正的入口 ItemMouseDoubleClickHandler.OpenContentAction 上。
+
+[HarmonyPatch(typeof(ItemMouseDoubleClickHandler), nameof(ItemMouseDoubleClickHandler.OpenContentAction))]
+public static class ContainerOpenPatch
+{
+    public static void Postfix(GameItem newItem)
+    {
+        try
+        {
+            if (newItem == null) return;
+            string id = newItem.identifier ?? "";
+            string title = "";
+            try { title = newItem.GetDisplayName() ?? ""; } catch { }
+            if (string.IsNullOrEmpty(title)) title = id;
+            ObjectUseSync.ReportContainer(true, id, title);
+        }
+        catch (Exception e) { CoopLog.Warn($"[Coop] 容器打开上报异常: {e.Message}"); }
+    }
+}
+
+[HarmonyPatch(typeof(ItemMouseDoubleClickHandler), nameof(ItemMouseDoubleClickHandler.OpenExamineAction))]
+public static class ContainerExaminePatch
+{
+    public static void Postfix(GameItem newItem)
+    {
+        try
+        {
+            if (newItem == null) return;
+            string id = newItem.identifier ?? "";
+            if (string.IsNullOrEmpty(id)) return;
+            string title = "";
+            try { title = newItem.GetDisplayName() ?? ""; } catch { }
+            CoopLog.Detail($"[Coop] 本地查看物品(不上报): {title} ({id})");
+        }
         catch { }
     }
 }
