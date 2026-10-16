@@ -66,6 +66,10 @@ public static class FriendCursor
     private static bool _followed;      // 本次拖动是否成功跟随过
     private static bool _warnedOldPeer; // "对方版本旧"只提示一次
     private static bool _calibLogged;   // 拖动标定日志(每次拖动一次)
+    private static float _peerNx, _peerNy;      // 队友那边"被拖物品"的归一化屏幕位置
+    private static bool _peerGot;               // 是否收到过位置
+    private static Vector2 _baseAnchor;         // 起始时本端物品的 anchoredPosition
+    private static float _basePeerNx, _basePeerNy;
 
     static void Diag(string msg)
     {
@@ -98,8 +102,35 @@ public static class FriendCursor
     /// </summary>
     static void TickDragFollow()
     {
-        if (!_dragging) return;
-        _followed = _followed || _dragItem != null;
+        if (!_dragging || _dragItem == null || !_peerGot) return;
+        try
+        {
+            var ge = _dragItem.TryCast<GameItemElement>();
+            var rt = ge != null ? ge.rectTransform : null;
+            if (rt == null) { Diag("跟随失败: 物品没有 rectTransform"); return; }
+
+            if (!_dragBaseSet)
+            {
+                _baseAnchor = rt.anchoredPosition;
+                _basePeerNx = _peerNx; _basePeerNy = _peerNy;
+                _dragBaseSet = true;
+                return;
+            }
+
+            // 队友那边这件物品从起点移动了多少(归一化) → 换算成本端屏幕像素 → 再除以 canvas 缩放
+            float scale = 1f;
+            try
+            {
+                var cv = rt.GetComponentInParent<Canvas>();
+                if (cv != null && cv.scaleFactor > 0.01f) scale = cv.scaleFactor;
+            }
+            catch { }
+            float dx = (_peerNx - _basePeerNx) * Screen.width / scale;
+            float dy = (_peerNy - _basePeerNy) * Screen.height / scale;
+            rt.anchoredPosition = _baseAnchor + new Vector2(dx, dy);
+            _followed = true;
+        }
+        catch (Exception e) { Diag("跟随异常: " + e.Message); }
     }
 
     public static void SetPeerName(string name)
@@ -172,11 +203,19 @@ public static class FriendCursor
     }
 
     /// <summary>拖拽状态:优先让"同一件物品"跟着光标走;找不到该物品时才退回幽灵提示</summary>
-    public static void SetDragging(bool dragging, string hint, int uid = 0, string ident = "")
+    public static void SetDragging(bool dragging, string hint, int uid = 0, string ident = "",
+                                   float nx = 0f, float ny = 0f)
     {
         try
         {
+            bool wasDragging = _dragging;
             _dragging = dragging;
+            if (dragging)
+            {
+                // 每次消息都刷新"队友那边物品现在在哪"(只当增量用)
+                _peerNx = nx; _peerNy = ny; _peerGot = true;
+                if (wasDragging) return;          // 已在拖动中:只更新位置,不要重置基准
+            }
             if (dragging)
             {
                 _dragItem = (uid != 0 || !string.IsNullOrEmpty(ident))
@@ -187,17 +226,7 @@ public static class FriendCursor
                 _calibLogged = false;
                 _dragStartAt = Time.unscaledTime;
                 if (_dragItem == null)
-                {
                     CoopLog.Info($"[Coop] 队友开始拖动,但本端找不到该物品(uid={uid} ident='{ident}') → 只显示提示");
-                    // uid 和 ident 都为空 = 对方根本没告诉我们拖的是哪一件 ——
-                    // 只有一个原因:对方的 mod 是旧版(那时候 DragState 还没带物品标识)
-                    if (uid == 0 && string.IsNullOrEmpty(ident) && !_warnedOldPeer)
-                    {
-                        _warnedOldPeer = true;
-                        CoopLog.Warn("[Coop] ⚠ 对方 mod 版本较旧:收不到\"拖的是哪一件\",物品跟随不会生效。"
-                                     + "请让对方重新安装最新的一键包(install.bat 会打印版本号,可截图核对)。");
-                    }
-                }
                 else
                     CoopLog.Info($"[Coop] 队友开始拖动: {_dragItem.identifier} uid={uid}");
             }
