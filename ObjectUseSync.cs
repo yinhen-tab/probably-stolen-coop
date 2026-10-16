@@ -121,26 +121,8 @@ public static class ObjectUseSync
     private static PixelWindow _openWindow;      // 本地当前打开的容器窗口(用于同步位置)
     private static float _lastWinX, _lastWinY, _winCheckedAt;
 
-    /// <summary>按标题找当前显示的窗口(容器内容窗的标题 = 物品显示名)</summary>
-    static PixelWindow FindWindowByTitle(string title)
-    {
-        if (string.IsNullOrEmpty(title)) return null;
-        try
-        {
-            var wins = Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<PixelWindow>());
-            if (wins == null) return null;
-            for (int i = 0; i < wins.Length; i++)
-            {
-                var w = wins[i]?.TryCast<PixelWindow>();
-                if (w == null) continue;
-                string t = "";
-                try { t = (w.titleString ?? "").Trim(); } catch { }
-                if (!string.IsNullOrEmpty(t) && t == title) return w;
-            }
-        }
-        catch { }
-        return null;
-    }
+    /// <summary>按标题找窗口(共用实现;PixelWindow 不是 UnityEngine.Object,不能用 FindObjectsOfTypeAll)</summary>
+    static PixelWindow FindWindowByTitle(string title) => CoopClient.FindWindowByTitle(title);
 
     static Vector2 WindowPos(PixelWindow w)
     {
