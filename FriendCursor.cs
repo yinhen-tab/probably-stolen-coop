@@ -1,4 +1,5 @@
 using System;
+using HarmonyLib;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -116,8 +117,29 @@ public static class FriendCursor
                 _dragBaseSet = true;
                 return;
             }
+            ApplyDragOffset(ge);
+        }
+        catch (Exception e) { Diag("跟随异常: " + e.Message); }
+    }
 
-            // 队友那边这件物品从起点移动了多少(归一化) → 换算成本端屏幕像素 → 再除以 canvas 缩放
+    /// <summary>
+    /// 把"相对起点的位移"写进物品的 anchoredPosition。
+    /// 同时被两处调用:每秒的 Tick + 游戏自身定位方法(GameItemElement.UpdateRectTransform)的 Postfix ——
+    /// ⚠️ 后者是为了保证"我们最后一次写" —— 游戏的布局会重写这个字段,只在自己 Tick 里写会被覆盖。
+    /// </summary>
+    public static void ApplyDragOffset(GameItemElement ge)
+    {
+        try
+        {
+            if (!CoopClient.DragFollowExperimental) return;   // 实测未对齐,默认关
+            if (!_dragging || _dragItem == null || !_peerGot || !_dragBaseSet) return;
+            if (ge == null) return;
+            var it = ge.TryCast<GameItem>();
+            if (it == null) return;
+            try { if (it.Pointer != _dragItem.Pointer) return; } catch { return; }
+
+            var rt = ge.rectTransform;
+            if (rt == null) return;
             float scale = 1f;
             try
             {
@@ -130,7 +152,7 @@ public static class FriendCursor
             rt.anchoredPosition = _baseAnchor + new Vector2(dx, dy);
             _followed = true;
         }
-        catch (Exception e) { Diag("跟随异常: " + e.Message); }
+        catch { }
     }
 
     public static void SetPeerName(string name)
@@ -344,5 +366,15 @@ public static class FriendCursor
         tex.Apply();
         return Sprite.Create(tex, new Rect(0, 0, TEX_W, TEX_H),
             new Vector2(HOT_X / TEX_W, 1f - HOT_Y / TEX_H), 100f);
+    }
+}
+
+// ---- 拖动跟随:挂在游戏自己的定位方法之后,保证我们的写入是"最后一次" ----
+[HarmonyPatch(typeof(GameItemElement), nameof(GameItemElement.UpdateRectTransform))]
+public static class ItemElementRelayoutPatch
+{
+    public static void Postfix(GameItemElement __instance)
+    {
+        try { FriendCursor.ApplyDragOffset(__instance); } catch { }
     }
 }
