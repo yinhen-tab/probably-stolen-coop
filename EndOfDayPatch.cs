@@ -8,6 +8,6 @@ public static class EndOfDayPatch
 {
     public static void Postfix()
     {
-        Plugin.Log.LogInfo("[Coop] EndOfDay 按钮被点击(夜结算)");
+        CoopLog.Info("[Coop] EndOfDay 按钮被点击(夜结算)");
     }
 }
