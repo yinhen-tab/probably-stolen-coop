@@ -19,7 +19,16 @@ import sys
 import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-GAME = sys.argv[1] if len(sys.argv) > 1 else r'E:\SteamLibrary\steamapps\common\Probably Stolen Demo'
+# 游戏目录:可用环境变量 PS_GAME 覆盖;否则自动在常见位置里找
+CANDIDATES = [
+    os.environ.get('PS_GAME', ''),
+    'F:////SteamLibrary////steamapps////common////Probably Stolen Demo',
+    'E:////SteamLibrary////steamapps////common////Probably Stolen Demo',
+    'C:////SteamLibrary////steamapps////common////Probably Stolen Demo',
+]
+GAME = next((c for c in CANDIDATES if c and os.path.isfile(os.path.join(c, 'Probably Stolen.exe'))),
+            CANDIDATES[1])
+
 OUT = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, '..', 'dist')
 HOST = os.environ.get('COOP_PACK_HOST', 'ws.yinhen.top')
 PORT = os.environ.get('COOP_PACK_PORT', '443')
