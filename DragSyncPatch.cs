@@ -24,6 +24,8 @@ public static class DragSync
     /// 拖动期间持续上报"被拖物品在哪"(归一化屏幕坐标,50ms 一次)。
     /// 对端只取相对起点的**增量**,所以不需要处理坐标原点/pivot/分辨率差异。
     /// </summary>
+    private static int _sendCount;
+
     public static void TickSend()
     {
         if (!Dragging) return;
@@ -31,16 +33,19 @@ public static class DragSync
         _lastPosAt = Time.time;
         float nx = 0f, ny = 0f;
         bool ok = false;
+        Vector2 sp = Vector2.zero;
+        string info = "";
         try
         {
             var ge = _dragItem != null ? _dragItem.TryCast<GameItemElement>() : null;
             var rt = ge != null ? ge.rectTransform : null;
             if (rt != null)
             {
-                var sp = RectTransformUtility.WorldToScreenPoint(null, rt.position);
+                sp = ToScreen(rt);
                 nx = sp.x / Mathf.Max(1f, Screen.width);
                 ny = sp.y / Mathf.Max(1f, Screen.height);
                 ok = true;
+                if (_sendCount < 3) info = DescribeItem(ge, rt);   // 只在前几次打细节
             }
         }
         catch { }
@@ -51,10 +56,65 @@ public static class DragSync
                 var m = Input.mousePosition;      // 兜底:用鼠标位置
                 nx = m.x / Mathf.Max(1f, Screen.width);
                 ny = m.y / Mathf.Max(1f, Screen.height);
+                info = " [物品取不到,用鼠标位置兜底]";
             }
             catch { return; }
         }
+        _sendCount++;
+        // 诊断:确认拖动期间坐标到底动不动、动在哪个节点上
+        if (_sendCount <= 3 || _sendCount % 10 == 0)
+            CoopLog.Info($"[Coop][拖标定发] #{_sendCount} 屏幕=({sp.x:F0},{sp.y:F0}) n=({nx:F3},{ny:F3}){info}");
         CoopClient.SendDrag(true, _hint, _uid, _ident, nx, ny);
+    }
+
+    /// <summary>RectTransform → 屏幕像素坐标(Overlay 下 position 即屏幕坐标;相机模式走 WorldToScreenPoint)</summary>
+    static Vector2 ToScreen(RectTransform rt)
+    {
+        Camera cam = null;
+        try
+        {
+            var cv = rt.GetComponentInParent<Canvas>();
+            if (cv != null && cv.renderMode != RenderMode.ScreenSpaceOverlay) cam = cv.worldCamera;
+        }
+        catch { }
+        return RectTransformUtility.WorldToScreenPoint(cam, rt.position);
+    }
+
+    /// <summary>
+    /// 诊断:物品的**每一个**节点现在在哪 —— 拖动时真正在移动的可能是 fakeInner 之类的"假象层",
+    /// 而不是主 rectTransform。一次拖动就能看出该读哪个。
+    /// </summary>
+    static string DescribeItem(GameItemElement ge, RectTransform rt)
+    {
+        try
+        {
+            var cv = rt.GetComponentInParent<Canvas>();
+            string s = $" 画布={Screen.width}x{Screen.height} mode={(cv != null ? cv.renderMode.ToString() : "无")}"
+                     + $" scale={(cv != null ? cv.scaleFactor : 0f):F2}";
+            s += " | 主rt=" + rt.position.ToString("F0") + "/" + rt.anchoredPosition.ToString("F0");
+            s += NodeP(ge.handler, "handler");
+            s += NodeP(ge.inner, "inner");
+            s += NodeP(ge.middle, "middle");
+            s += NodeP(ge.rotator, "rotator");
+            s += NodeP(ge.background, "bg");
+            s += NodeP(ge.fakeInner, "fakeIn");
+            s += NodeP(ge.fakeMiddle, "fakeMid");
+            s += NodeP(ge.fakeRotator, "fakeRot");
+            s += NodeP(ge.fakeBackground, "fakeBg");
+            s += " 鼠标=" + Input.mousePosition.ToString("F0");
+            return s;
+        }
+        catch (Exception e) { return " [诊断异常:" + e.Message + "]"; }
+    }
+
+    static string NodeP(TreeNodeRender n, string nm)
+    {
+        try
+        {
+            if (n == null) return "";
+            return $" {nm}={n.transform.position.ToString("F0")}";
+        }
+        catch { return ""; }
     }
 
     /// <summary>是否正在拖动(供 ItemMoveSync 切到高频采集)</summary>
