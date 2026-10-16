@@ -341,7 +341,7 @@ public static class UiWindowSync
 [HarmonyPatch(typeof(ChemFinisherUIManager), nameof(ChemFinisherUIManager.OpenUI))]
 public static class UiOpen_chemfinisher
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("chemfinisher", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("chemfinisher", __0); }
 }
 
 [HarmonyPatch(typeof(ChemFinisherUIManager), nameof(ChemFinisherUIManager.HideUI))]
@@ -353,7 +353,7 @@ public static class UiClose_HideUI
 [HarmonyPatch(typeof(ChemScannerUIManager), nameof(ChemScannerUIManager.Open))]
 public static class UiOpen_chem_scanner
 {
-    public static void Postfix(GameItem a, GameItem b) { UiWindowSync.ReportOpen("chem_scanner", a, b); }
+    public static void Postfix(GameItem __0, GameItem __1) { UiWindowSync.ReportOpen("chem_scanner", __0, __1); }
 }
 
 [HarmonyPatch(typeof(ChemScannerUIManager), nameof(ChemScannerUIManager.Close))]
@@ -365,19 +365,19 @@ public static class UiClose_Close
 [HarmonyPatch(typeof(WaterScannerUIManager), nameof(WaterScannerUIManager.Open))]
 public static class UiOpen_water_scanner
 {
-    public static void Postfix(GameItem a, GameItem b) { UiWindowSync.ReportOpen("water_scanner", a, b); }
+    public static void Postfix(GameItem __0, GameItem __1) { UiWindowSync.ReportOpen("water_scanner", __0, __1); }
 }
 
 [HarmonyPatch(typeof(WaterStripUIManager), nameof(WaterStripUIManager.Open))]
 public static class UiOpen_water_strip
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("water_strip", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("water_strip", __0); }
 }
 
 [HarmonyPatch(typeof(ExchangeUIManager), nameof(ExchangeUIManager.OpenPanel))]
 public static class UiOpen_exchange
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("exchange", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("exchange", __0); }
 }
 
 [HarmonyPatch(typeof(ExchangeUIManager), nameof(ExchangeUIManager.ClosePanel))]
@@ -389,7 +389,7 @@ public static class UiClose_ClosePanel
 [HarmonyPatch(typeof(LabelerUIManager), nameof(LabelerUIManager.OpenUI))]
 public static class UiOpen_labeler
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("labeler", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("labeler", __0); }
 }
 
 [HarmonyPatch(typeof(LabelerUIManager), nameof(LabelerUIManager.CloseUI))]
@@ -401,25 +401,25 @@ public static class UiClose_CloseUI
 [HarmonyPatch(typeof(LabelerBlueUIManager), nameof(LabelerBlueUIManager.OpenUI))]
 public static class UiOpen_labeler_blue
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("labeler_blue", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("labeler_blue", __0); }
 }
 
 [HarmonyPatch(typeof(PlantAnalyserUIManager), nameof(PlantAnalyserUIManager.OpenUI))]
 public static class UiOpen_plant_analyser
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("plant_analyser", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("plant_analyser", __0); }
 }
 
 [HarmonyPatch(typeof(ScratcherUIManager), nameof(ScratcherUIManager.OpenUI))]
 public static class UiOpen_scratcher
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("scratcher", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("scratcher", __0); }
 }
 
 [HarmonyPatch(typeof(InspectionUIManager), nameof(InspectionUIManager.OpenCigaretteConfrontPanel))]
 public static class UiOpen_confront_cig
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("confront_cig", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("confront_cig", __0); }
 }
 
 [HarmonyPatch(typeof(InspectionUIManager), nameof(InspectionUIManager.CloseConfrontPanel))]
@@ -431,13 +431,13 @@ public static class UiClose_CloseConfrontPanel
 [HarmonyPatch(typeof(InspectionUIManager), nameof(InspectionUIManager.OpenStampConfrontPanel))]
 public static class UiOpen_confront_stamp
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("confront_stamp", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("confront_stamp", __0); }
 }
 
 [HarmonyPatch(typeof(InspectionUIManager), nameof(InspectionUIManager.OpenInjectorConfrontPanel))]
 public static class UiOpen_confront_inj
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("confront_inj", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("confront_inj", __0); }
 }
 
 [HarmonyPatch(typeof(NotebookUIManager), nameof(NotebookUIManager.OpenUI))]
@@ -539,7 +539,7 @@ public static class UiOpen_start_of_day
 [HarmonyPatch(typeof(PaperUIManager), nameof(PaperUIManager.OpenBook))]
 public static class UiOpen_paper_book
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("paper_book", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("paper_book", __0); }
 }
 
 [HarmonyPatch(typeof(PaperUIManager), nameof(PaperUIManager.CloseBook))]
@@ -551,7 +551,7 @@ public static class UiClose_CloseBook
 [HarmonyPatch(typeof(PaperUIManager), nameof(PaperUIManager.OpenSlipUI))]
 public static class UiOpen_paper_slip
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("paper_slip", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("paper_slip", __0); }
 }
 
 [HarmonyPatch(typeof(PaperUIManager), nameof(PaperUIManager.CloseSlipUI))]
@@ -563,7 +563,7 @@ public static class UiClose_CloseSlipUI
 [HarmonyPatch(typeof(PaperUIManager), nameof(PaperUIManager.OpenGeneralSlipUI))]
 public static class UiOpen_paper_gen_slip
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("paper_gen_slip", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("paper_gen_slip", __0); }
 }
 
 [HarmonyPatch(typeof(PaperUIManager), nameof(PaperUIManager.CloseGeneralSlipUI))]
@@ -587,12 +587,12 @@ public static class UiClose_CloseIndex
 [HarmonyPatch(typeof(LogUIManager), nameof(LogUIManager.OpenUI))]
 public static class UiOpen_log
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("log", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("log", __0); }
 }
 
 [HarmonyPatch(typeof(HandnoteUIManager), nameof(HandnoteUIManager.OpenPanel))]
 public static class UiOpen_handnote
 {
-    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("handnote", a); }
+    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("handnote", __0); }
 }
 }
