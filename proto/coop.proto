@@ -325,4 +325,5 @@ message ItemMove {
   int32 min_y = 5;         // GridShape.minY
   int32 orientation = 6;   // 朝向
   bool flipped = 7;        // 是否翻转
+  int32 inv_uid = 8;       // 所在容器物品的 uniqueId(0=主库存) → 支持跨容器转移
 }
