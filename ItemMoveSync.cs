@@ -19,6 +19,23 @@ public static class ItemMoveSync
     public static bool Enabled = true;
     public static bool ApplyingRemote;
 
+    /// <summary>本地玩家正在拖动物品(游戏自己的拖拽处理器为真)</summary>
+    public static bool IsLocalDragging
+    {
+        get
+        {
+            try
+            {
+                var h = ItemMouseDragHandler.current;
+                return h != null && h.IsDraggingItem;
+            }
+            catch { return false; }
+        }
+    }
+
+    /// <summary>拖动中:60ms 采集一次(跟手);平时:0.8s</summary>
+    const float DragInterval = 0.06f;
+
     private struct Node
     {
         public int X, Y, O;
@@ -160,8 +177,10 @@ public static class ItemMoveSync
         {
             if (!Enabled) return;
             if (ApplyingRemote) return;
-            if (FriendCursor.IsDraggingPeer) return;   // 队友正在拖这件 → 位置由跟随驱动,别回传
-            if (Time.time - _lastAt < Interval) return;
+            // 注意:这里**不能**因"队友在拖"而停采集 —— 拖动同步靠的就是本端物品位置变化及时上报
+            if (ApplyingRemote) return;
+            float interval = IsLocalDragging ? DragInterval : Interval;
+            if (Time.time - _lastAt < interval) return;
             if (CoopClient.Net == null || !CoopClient.Handshaked || string.IsNullOrEmpty(CoopClient.RoomCode)) return;
             if (GameMaster.current == null) return;   // 只在店铺场景
             _lastAt = Time.time;
