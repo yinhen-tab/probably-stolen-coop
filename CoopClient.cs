@@ -342,8 +342,15 @@ public static class CoopClient
                 string hint = d.ItemHint;
                 int duid = d.UniqueId;
                 string dident = d.Identifier;
-                float dnx = d.Nx, dny = d.Ny;
-                RunOnMain(() => FriendCursor.SetDragging(dragging, hint, duid, dident, dnx, dny));
+                // 拖动期间 nx/ny = 目标格坐标(-1=无效)
+                int dgx = (int)d.Nx, dgy = (int)d.Ny;
+                RunOnMain(() => FriendCursor.SetDragging(dragging, hint, duid, dident, -1f, -1f));
+                // ★ 目标格跟随:把物品挪到队友那边的格子(走 ItemMoveSync 已验证的"改模型+重绘"路径)
+                if (dragging && dgx >= 0 && dgy >= 0 && (duid != 0 || !string.IsNullOrEmpty(dident)))
+                {
+                    int u = duid; string idn = dident; int mx = dgx, my = dgy;
+                    RunOnMain(() => ItemMoveSync.ApplyDragTarget(u, idn, mx, my));
+                }
                 break;
             }
             case MsgType.CustomerLeft:
@@ -1237,8 +1244,12 @@ public static class CoopClient
         catch { }
     }
 
+    /// <summary>
+    /// 上报拖拽状态。gx/gy = **被拖物品的目标格**(-1=无效/未知)。
+    /// 复用 proto 的 nx/ny 传这两个整数(拖动期间不再需要屏幕坐标)。
+    /// </summary>
     public static void SendDrag(bool dragging, string hint, int uid = 0, string ident = "",
-                                float nx = 0f, float ny = 0f)
+                                int gx = -1, int gy = -1)
     {
         if (Net == null || !Handshaked || string.IsNullOrEmpty(RoomCode)) return;
         try
@@ -1246,8 +1257,8 @@ public static class CoopClient
             Net.Send(MsgType.DragState, new DragState
             {
                 Dragging = dragging, ItemHint = hint ?? "", UniqueId = uid, Identifier = ident ?? "",
-                // 拖动期间用它传【被拖物品的归一化屏幕位置】(对端只取增量,不依赖绝对坐标)
-                Nx = nx, Ny = ny,
+                // ★ 拖动期间 nx/ny = 目标格坐标(-1=不跟随);接收端据此摆放物品
+                Nx = gx, Ny = gy,
             });
         }
         catch { }
@@ -1428,7 +1439,7 @@ public static class CoopClient
         SfxFilterIsWhitelist = config.Bind("联机", "音效名单是白名单", false,
             "false(默认)=黑名单(名单里的不播放);true=白名单(只播放名单里的)").Value;
 
-        DragFollowExperimental = config.Bind("联机", "拖动跟随(实验性)", true,
+        DragFollowExperimental = config.Bind("联机", "拖动跟随(实验性)", false,
             "true=让被拖物品贴着对方光标走(未验证,可能出现位置偏差);false(默认)=拖动期间只显示\"拖动中\"提示,松手后物品落到正确位置").Value;
         ItemMoveSync.Enabled = config.Bind("联机", "同步物品位置", true, "true(默认)=拖动/移动物品时,对方那里同一件物品也跟着换位置(只影响这一件)").Value;
         AutoTest = config.Bind("测试", "自动开局与回合测试", false, "诊断用:自动从主菜单开局并推进回合(正式联机请保持 false)").Value;
