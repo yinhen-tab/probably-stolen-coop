@@ -1,4 +1,5 @@
 using HarmonyLib;
+using UnityEngine;
 using UnityEngine.EventSystems;
 
 namespace ProbablyStolenCoop;
@@ -11,6 +12,50 @@ public static class DragSync
 {
     /// <summary>最近在物品节点上按下的那一件(拖拽身份兜底:OnBeginDrag 的节点有时拿不到物品)</summary>
     private static GameItem _lastPressed;
+
+    // 拖动上下文(供 TickSend 用)
+    private static GameItem _dragItem;
+    private static string _hint = "";
+    private static int _uid;
+    private static string _ident = "";
+    private static float _lastPosAt;
+
+    /// <summary>
+    /// 拖动期间持续上报"被拖物品在哪"(归一化屏幕坐标,50ms 一次)。
+    /// 对端只取相对起点的**增量**,所以不需要处理坐标原点/pivot/分辨率差异。
+    /// </summary>
+    public static void TickSend()
+    {
+        if (!Dragging) return;
+        if (Time.time - _lastPosAt < 0.05f) return;
+        _lastPosAt = Time.time;
+        float nx = 0f, ny = 0f;
+        bool ok = false;
+        try
+        {
+            var ge = _dragItem != null ? _dragItem.TryCast<GameItemElement>() : null;
+            var rt = ge != null ? ge.rectTransform : null;
+            if (rt != null)
+            {
+                var sp = RectTransformUtility.WorldToScreenPoint(null, rt.position);
+                nx = sp.x / Mathf.Max(1f, Screen.width);
+                ny = sp.y / Mathf.Max(1f, Screen.height);
+                ok = true;
+            }
+        }
+        catch { }
+        if (!ok)
+        {
+            try
+            {
+                var m = Input.mousePosition;      // 兜底:用鼠标位置
+                nx = m.x / Mathf.Max(1f, Screen.width);
+                ny = m.y / Mathf.Max(1f, Screen.height);
+            }
+            catch { return; }
+        }
+        CoopClient.SendDrag(true, _hint, _uid, _ident, nx, ny);
+    }
 
     /// <summary>是否正在拖动(供 ItemMoveSync 切到高频采集)</summary>
     public static bool Dragging { get; private set; }
@@ -130,9 +175,13 @@ public static class DragSync
                 if (string.IsNullOrEmpty(hint)) hint = ident;
             }
             else why = " [三级反查都没找到物品]";
+            if (dragging)
+            {
+                _dragItem = gi; _hint = hint ?? ""; _uid = uid; _ident = ident ?? "";
+                _lastPosAt = 0f;      // 立刻发第一帧位置
+            }
         }
         catch (Exception e) { why = " [取物品异常: " + e.Message + "]"; }
-        // 提到 Info:这条是排查"拖动不跟随"的唯一线索,Detail 级在"正常"模式下看不见
         Dragging = dragging;      // 供 ItemMoveSync 切高频采集
         CoopLog.Info($"[Coop] 本地拖拽{(dragging ? "开始" : "结束")}: uid={uid} ident='{ident}'{why}");
         CoopClient.SendDrag(dragging, hint, uid, ident);
