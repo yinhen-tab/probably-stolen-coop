@@ -341,8 +341,8 @@ public static class ObjectUseSync
                 }
                 h.OpenContentAction(item, Vector2.zero);
                 _remoteOpenTitle = title;
-                // 关键:物品自己持有内容窗引用(item.contentWindow) → 不必按标题猜窗口
-                PlaceRemoteWindow(item, msg.Wx, msg.Wy, 0);
+                // 关键:优先用物品自己的内容窗引用,拿不到就查窗口登记表(不按标题瞎猜)
+                PlaceRemoteWindow(item, title, msg.Wx, msg.Wy, 0);
                 CoopLog.Info($"[Coop] 已打开队友的容器: {title} → 目标位置({msg.Wx:0},{msg.Wy:0})");
             }
             else
@@ -367,22 +367,26 @@ public static class ObjectUseSync
     /// 把远端容器的窗口摆到队友那边相同的位置。
     /// item.contentWindow 在 OpenContentAction 之后可能还没就绪 → 每 0.15s 重试,最多 8 次。
     /// </summary>
-    static void PlaceRemoteWindow(GameItem item, float wx, float wy, int attempt)
+    static void PlaceRemoteWindow(GameItem item, string title, float wx, float wy, int attempt)
     {
         try
         {
+            // ① 物品自己持有的窗口引用 ② Show 钩子登记过的实例(按标题) ③ 全量反查
             var w = item != null ? item.contentWindow : null;
+            if (w == null) w = WindowSync.FindRegistered(title);
+            if (w == null) w = FindWindowByTitle(title);
             if (w == null)
             {
                 if (attempt < 8)
-                    CoopClient.RunOnMainAfter(0.15f, () => PlaceRemoteWindow(item, wx, wy, attempt + 1));
+                    CoopClient.RunOnMainAfter(0.15f, () => PlaceRemoteWindow(item, title, wx, wy, attempt + 1));
                 else
-                    CoopLog.Warn("[Coop] 容器窗口引用一直拿不到(item.contentWindow 为空),位置无法对齐");
+                    CoopLog.Warn($"[Coop] 容器窗口引用一直拿不到({title}),位置无法对齐");
                 return;
             }
             WindowSync.Register(w);
             _remoteWindow = w;
             if (wx != 0f || wy != 0f) SetWindowPos(w, wx, wy);
+            CoopLog.Info($"[Coop] 容器窗口已对齐到 ({wx:0},{wy:0})");
         }
         catch { }
     }
