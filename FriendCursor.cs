@@ -131,8 +131,8 @@ public static class FriendCursor
     {
         try
         {
-            if (!CoopClient.DragFollowExperimental) return;   // 实测未对齐,默认关
-            if (!_dragging || _dragItem == null || !_peerGot || !_dragBaseSet) return;
+            if (!CoopClient.DragFollowExperimental) return;
+            if (!_dragging || _dragItem == null || !_peerGot) return;
             if (ge == null) return;
             var it = ge.TryCast<GameItem>();
             if (it == null) return;
@@ -140,17 +140,43 @@ public static class FriendCursor
 
             var rt = ge.rectTransform;
             if (rt == null) return;
-            float scale = 1f;
+            if (!_calibLogged)
+            {
+                _calibLogged = true;
+                CoopLog.Info($"[Coop][拖标定收] 对端n=({_peerNx:F3},{_peerNy:F3}) 本端rt.pos={rt.position} anchored={rt.anchoredPosition} 屏幕={Screen.width}x{Screen.height}");
+            }
+            SetWorldFromNrm(rt, _peerNx, _peerNy);
+            _followed = true;
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 归一化屏幕坐标(0..1) → 物品的**世界坐标**。
+    /// ⚠️ 不走 anchoredPosition:那条路要过 anchor/pivot/canvas 缩放 三重换算,实测全错。
+    ///    世界坐标直设由 Unity 自己算 —— 队友光标(_dot.position)用的就是这个办法,已证明可行。
+    /// </summary>
+    public static void SetWorldFromNrm(RectTransform rt, float nx, float ny)
+    {
+        try
+        {
+            if (rt == null) return;
+            float sx = nx * Screen.width, sy = ny * Screen.height;
+            Camera cam = null;
             try
             {
                 var cv = rt.GetComponentInParent<Canvas>();
-                if (cv != null && cv.scaleFactor > 0.01f) scale = cv.scaleFactor;
+                if (cv != null && cv.renderMode != RenderMode.ScreenSpaceOverlay) cam = cv.worldCamera;
             }
             catch { }
-            float dx = (_peerNx - _basePeerNx) * Screen.width / scale;
-            float dy = (_peerNy - _basePeerNy) * Screen.height / scale;
-            rt.anchoredPosition = _baseAnchor + new Vector2(dx, dy);
-            _followed = true;
+            Vector3 w;
+            if (cam == null) w = new Vector3(sx, sy, rt.position.z);
+            else
+            {
+                float depth = Mathf.Abs(cam.transform.InverseTransformPoint(rt.position).z);
+                w = cam.ScreenToWorldPoint(new Vector3(sx, sy, depth));
+            }
+            rt.position = w;
         }
         catch { }
     }
