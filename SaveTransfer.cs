@@ -32,9 +32,20 @@ public static class SaveTransfer
     // ================= 房主:上传 =================
 
     /// <summary>房主:把当前存档落盘并上传给队友(收到 SAVE_REQUEST 或有人进房时调用)</summary>
+    private static float _lastUploadAt;
+    private static string _doneHash = "";
+    private static bool _loadTriggered;
+
     public static void HostUpload()
     {
         if (!Enabled) return;
+        // 节流:有人进房(PLAYER_JOINED)和收到索取(SAVE_REQUEST)会先后触发两次,
+        // 8 秒内只发一次 —— 否则队友会收到两份,第二份到达时游戏已在读档、主菜单已销毁 → 自动载入失败
+        if (Time.time - _lastUploadAt < 8f)
+        {
+            CoopLog.Detail("[Coop][存档] 刚发过,忽略重复触发");
+            return;
+        }
         try
         {
             var ps = PlayerStore.Instance;
@@ -55,6 +66,7 @@ public static class SaveTransfer
                 Buffer.BlockCopy(data, off, slice, 0, n);
                 CoopClient.SendSaveChunk(seq++, slice);
             }
+            _lastUploadAt = Time.time;
             CoopLog.Info($"[Coop][存档] 已上传房主存档: 槽位={slot} {data.Length / 1024}KB / {seq} 片");
         }
         catch (Exception e) { CoopLog.Warn($"[Coop][存档] 上传失败: {e.Message}"); }
@@ -66,7 +78,27 @@ public static class SaveTransfer
     {
         if (CoopClient.IsHost) return;          // 房主不接受他人的存档
         if (!Enabled) return;
-        _total = m.Total; _slot = m.Slot; _hash = m.Hash ?? "";
+
+        // ---- 去重:重复的存档不能再走一遍流程 ----
+        string inc = m.Hash ?? "";
+        bool inProgress = _buf != null && _got < _total;
+        if (inProgress && inc == _hash)
+        {
+            CoopLog.Detail("[Coop][存档] 重复的存档头(本份正在接收),忽略");
+            return;
+        }
+        if (!string.IsNullOrEmpty(inc) && inc == _doneHash)
+        {
+            CoopLog.Detail("[Coop][存档] 这份存档已经载入过了,忽略");
+            return;
+        }
+        if (_loadTriggered || GameMaster.current != null)
+        {
+            CoopLog.Info("[Coop][存档] 已在游戏中,忽略重复的存档传输");
+            return;
+        }
+
+        _total = m.Total; _slot = m.Slot; _hash = inc;
         _buf = new byte[Math.Max(1, m.Total)];
         _got = 0;
         CoopLog.Info($"[Coop][存档] 开始接收房主存档: 槽位={m.Slot} {m.Total / 1024}KB");
@@ -110,16 +142,35 @@ public static class SaveTransfer
         }
         catch (Exception e) { CoopLog.Warn($"[Coop][存档] 写入失败: {e.Message}"); return; }
 
+        _doneHash = h;
         CoopClient.RunOnMain(() => OpenLoadUiThenPick(slot));
     }
 
     /// <summary>打开游戏原生存档列表,然后自动点对应槽位的"载入"</summary>
-    private static void OpenLoadUiThenPick(int slot)
+    private static void OpenLoadUiThenPick(int slot) => OpenLoadUiRetry(slot, 0);
+
+    /// <summary>主菜单可能还没就绪(时序问题) → 重试几次;若其实已经进游戏了,静默跳过</summary>
+    private static void OpenLoadUiRetry(int slot, int attempt)
     {
         try
         {
             var m = MainMenuUIController.Instance;
-            if (m == null) { CoopLog.Warn("[Coop][存档] 主菜单实例为空,请手动载入槽位 " + slot); return; }
+            if (m == null)
+            {
+                if (GameMaster.current != null)      // 已经在店里了 → 这份存档本来就是多余的
+                {
+                    CoopLog.Info("[Coop][存档] 已经进入游戏,无需再载入(忽略重复传输)");
+                    return;
+                }
+                if (attempt < 6)
+                {
+                    CoopClient.RunOnMainAfter(0.4f, () => OpenLoadUiRetry(slot, attempt + 1));
+                    return;
+                }
+                CoopLog.Warn("[Coop][存档] 主菜单实例为空,请手动载入槽位 " + slot);
+                return;
+            }
+            _loadTriggered = true;
             m.OnLoadGameClick();
             CoopLog.Info($"[Coop][存档] 已打开存档列表,准备自动载入槽位 {slot}");
             CoopClient.RunOnMainAfter(0.6f, () => PickSlot(slot));
