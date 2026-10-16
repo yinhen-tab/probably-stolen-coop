@@ -127,6 +127,14 @@ public static class FriendCursor
     /// 同时被两处调用:每秒的 Tick + 游戏自身定位方法(GameItemElement.UpdateRectTransform)的 Postfix ——
     /// ⚠️ 后者是为了保证"我们最后一次写" —— 游戏的布局会重写这个字段,只在自己 Tick 里写会被覆盖。
     /// </summary>
+    private static GameItemElement _fakeItem;
+    private static bool _fakeOrigActive;
+
+    /// <summary>
+    /// 拖动跟随:把本端物品的**假象层**(fakeInner 那组)显示出来并移到队友那边物品的位置。
+    /// ⚠️ 全程不动主 rectTransform / 不动模型 —— 物品的真实位置、存档、松手落位都不受影响,
+    ///    只是"视觉上的替身"跟着走(与发送端表现一致:发送端也是假象层在动、真实层不动)。
+    /// </summary>
     public static void ApplyDragOffset(GameItemElement ge)
     {
         try
@@ -143,40 +151,93 @@ public static class FriendCursor
             if (!_calibLogged)
             {
                 _calibLogged = true;
-                CoopLog.Info($"[Coop][拖标定收] 对端n=({_peerNx:F3},{_peerNy:F3}) 本端rt.pos={rt.position} anchored={rt.anchoredPosition} 屏幕={Screen.width}x{Screen.height}");
+                CoopLog.Info($"[Coop][拖标定收] 对端n=({_peerNx:F3},{_peerNy:F3}) 本端fakeIn={NodePos(ge.fakeInner)} 主rt={rt.position} 屏幕={Screen.width}x{Screen.height} 假象可见={FakeActive(ge)}");
             }
-            SetWorldFromNrm(rt, _peerNx, _peerNy);
+
+            float sx = _peerNx * Screen.width, sy = _peerNy * Screen.height;
+            ShowFake(ge);
+            MoveNode(ge.fakeInner, sx, sy);
+            MoveNode(ge.fakeMiddle, sx, sy);
+            MoveNode(ge.fakeRotator, sx, sy);
+            MoveNode(ge.fakeBackground, sx, sy);
             _followed = true;
+            _diagLogged2 = true;
         }
         catch { }
     }
 
-    /// <summary>
-    /// 归一化屏幕坐标(0..1) → 物品的**世界坐标**。
-    /// ⚠️ 不走 anchoredPosition:那条路要过 anchor/pivot/canvas 缩放 三重换算,实测全错。
-    ///    世界坐标直设由 Unity 自己算 —— 队友光标(_dot.position)用的就是这个办法,已证明可行。
-    /// </summary>
-    public static void SetWorldFromNrm(RectTransform rt, float nx, float ny)
+    private static bool _diagLogged2;
+
+    /// <summary>显示假象层(记住原始可见状态,拖动结束时还原)</summary>
+    static void ShowFake(GameItemElement ge)
     {
         try
         {
-            if (rt == null) return;
-            float sx = nx * Screen.width, sy = ny * Screen.height;
+            if (_fakeItem == null || !SamePtr(_fakeItem, ge))
+            {
+                HideFake();
+                _fakeItem = ge;
+                try { _fakeOrigActive = ge.fakeInner != null && ge.fakeInner.gameObject.activeSelf; } catch { _fakeOrigActive = false; }
+            }
+            ToggleFake(ge, true);
+        }
+        catch { }
+    }
+
+    /// <summary>拖动结束:还原假象层可见状态(主 rectTransform 从未被动过,所以物品位置无需还原)</summary>
+    public static void HideFake()
+    {
+        try { if (_fakeItem != null) ToggleFake(_fakeItem, _fakeOrigActive); } catch { }
+        _fakeItem = null;
+        _fakeOrigActive = false;
+    }
+
+    static void ToggleFake(GameItemElement ge, bool on)
+    {
+        try { if (ge.fakeInner != null) ge.fakeInner.gameObject.SetActive(on); } catch { }
+        try { if (ge.fakeMiddle != null) ge.fakeMiddle.gameObject.SetActive(on); } catch { }
+        try { if (ge.fakeRotator != null) ge.fakeRotator.gameObject.SetActive(on); } catch { }
+        try { if (ge.fakeBackground != null) ge.fakeBackground.gameObject.SetActive(on); } catch { }
+    }
+
+    static bool SamePtr(GameItem a, GameItem b)
+    {
+        try { return a != null && b != null && a.Pointer == b.Pointer; } catch { return false; }
+    }
+
+    static string FakeActive(GameItemElement ge)
+    {
+        try { return ge.fakeInner != null ? ge.fakeInner.gameObject.activeSelf.ToString() : "null"; }
+        catch { return "?"; }
+    }
+
+    static string NodePos(TreeNodeRender n)
+    {
+        try { return n != null ? n.transform.position.ToString("F0") : "null"; } catch { return "?"; }
+    }
+
+    /// <summary>把某个节点移到指定的屏幕像素位置(世界坐标直设;Overlay 下 position 即屏幕像素)</summary>
+    static void MoveNode(TreeNodeRender n, float sx, float sy)
+    {
+        try
+        {
+            if (n == null) return;
+            var tr = n.transform;
             Camera cam = null;
             try
             {
-                var cv = rt.GetComponentInParent<Canvas>();
+                var cv = tr.GetComponentInParent<Canvas>();
                 if (cv != null && cv.renderMode != RenderMode.ScreenSpaceOverlay) cam = cv.worldCamera;
             }
             catch { }
             Vector3 w;
-            if (cam == null) w = new Vector3(sx, sy, rt.position.z);
+            if (cam == null) w = new Vector3(sx, sy, tr.position.z);
             else
             {
-                float depth = Mathf.Abs(cam.transform.InverseTransformPoint(rt.position).z);
+                float depth = Mathf.Abs(cam.transform.InverseTransformPoint(tr.position).z);
                 w = cam.ScreenToWorldPoint(new Vector3(sx, sy, depth));
             }
-            rt.position = w;
+            tr.position = w;
         }
         catch { }
     }
@@ -280,6 +341,7 @@ public static class FriendCursor
             }
             else
             {
+                HideFake();               // 拖动结束:收起假象层,物品恢复原样(位置从未被动过)
                 _dragItem = null;
                 _dragBaseSet = false;
             }
