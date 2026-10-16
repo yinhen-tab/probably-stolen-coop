@@ -18,6 +18,36 @@ public static class AudioSync
     private static int _lastVariant = -1;
     private static float _lastAt;
 
+    // ---- 降噪:名单过滤 + 同名去重 + 全局限速(解决"音效偏吵") ----
+    private static readonly System.Collections.Generic.Dictionary<string, float> _recent = new();
+    private static float _winStart;
+    private static int _winCount;
+    private const float DupWindow = 0.12f;
+    private const int MaxPerSecond = 25;
+
+    static bool Allow(string id)
+    {
+        float now = Time.time;
+        var list = CoopClient.SfxFilter;
+        if (list != null && list.Length > 0)
+        {
+            string low = id.ToLower();
+            bool hit = false;
+            for (int i = 0; i < list.Length; i++)
+            {
+                string k = list[i];
+                if (!string.IsNullOrEmpty(k) && low.Contains(k)) { hit = true; break; }
+            }
+            if (CoopClient.SfxFilterIsWhitelist ? !hit : hit) return false;   // 白名单:不在名单就丢
+        }
+        if (_recent.TryGetValue(id, out var t) && now - t < DupWindow) return false;
+        if (now - _winStart >= 1f) { _winStart = now; _winCount = 0; }
+        if (++_winCount > MaxPerSecond) return false;
+        _recent[id] = now;
+        if (_recent.Count > 64) _recent.Clear();
+        return true;
+    }
+
     public static void Report(string identifier, int variant)
     {
         try
@@ -29,6 +59,7 @@ public static class AudioSync
             if (CoopClient.Net == null || !CoopClient.Handshaked) return;
             if (string.IsNullOrEmpty(CoopClient.RoomCode)) return;
             if (identifier == _lastId && variant == _lastVariant && Time.time - _lastAt < 0.05f) return;
+            if (!Allow(identifier)) return;
             _lastId = identifier; _lastVariant = variant; _lastAt = Time.time;
             CoopClient.SendSfx(identifier, variant);
         }
