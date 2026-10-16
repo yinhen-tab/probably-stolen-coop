@@ -17,13 +17,13 @@ public static class GameMasterUpdatePatch
         {
             _firstLogged = true;
             var gm = GameMaster.current;
-            Plugin.Log.LogInfo($"[Coop] GameMaster.Update 首次触发! current={(gm != null)} turnManager={(gm?.turnManager != null)}");
+            CoopLog.Info($"[Coop] GameMaster.Update 首次触发! current={(gm != null)} turnManager={(gm?.turnManager != null)}");
             return;
         }
         if (_frames == 600)
         {
             var gm = GameMaster.current;
-            Plugin.Log.LogInfo($"[Coop] GameMaster.Update 已跑 600 帧(turnManager={(gm?.turnManager != null)})");
+            CoopLog.Info($"[Coop] GameMaster.Update 已跑 600 帧(turnManager={(gm?.turnManager != null)})");
         }
     }
 }
