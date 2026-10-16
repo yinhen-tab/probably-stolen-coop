@@ -123,6 +123,15 @@ public static class DragSync
         }
         catch { }
 
+        // 完整轨迹落盘(每帧)—— 回放工具据此 100% 复现
+        try
+        {
+            var tp = TrackPath();
+            if (tp != null && _dragItem != null)
+                System.IO.File.AppendAllText(tp, $"{gx},{gy},{sp.x:F1},{sp.y:F1}\n");
+        }
+        catch { }
+
         // 诊断:确认拖动期间坐标到底动不动、动在哪个节点上
         if (_sendCount <= 3 || _sendCount % 10 == 0)
             CoopLog.Info($"[Coop][拖标定发] #{_sendCount} 屏幕=({sp.x:F0},{sp.y:F0}) n=({nx:F3},{ny:F3}) 目标格=({gx},{gy}){info}");
@@ -140,6 +149,13 @@ public static class DragSync
         }
         catch { }
         return RectTransformUtility.WorldToScreenPoint(cam, tr.position);
+    }
+
+    /// <summary>拖动轨迹文件(每帧一行 gx,gy,屏幕x,屏幕y)—— 供回放工具 100% 复现真实拖动</summary>
+    static string TrackPath()
+    {
+        try { return System.IO.Path.Combine(BepInEx.Paths.BepInExRootPath, "coop_drag_track.txt"); }
+        catch { return null; }
     }
 
     static int SafeW(GameItemElement ge) { try { return ge.widthPixels; } catch { return -1; } }
@@ -321,6 +337,7 @@ public static class DragSync
                 _dragItem = gi; _hint = hint ?? ""; _uid = uid; _ident = ident ?? "";
                 _lastPosAt = 0f;      // 立刻发第一帧位置
                 _baseSet = false; _baseGX = -1; _lastGX = -1; _lastGY = -1;
+                try { var tp = TrackPath(); if (tp != null) System.IO.File.WriteAllText(tp, ""); } catch { }
             }
             else if (gi != null)
             {
@@ -340,7 +357,9 @@ public static class DragSync
                             float pdx = lpx - bpx, pdy = lpy - bpy;
                             string real = "";
                             // 用"真实格位移"反算每格像素 —— 与当前值不符就自动修正(下次拖动即准)
-                            if (dgx != 0)
+                            // ⚠️ 位移太小(手抖/只挪一格)会让反算严重失真(实测出 20/42 这种假值),
+                            //    所以**必须跨 3 格以上**才允许修正
+                            if (Mathf.Abs(dgx) >= 3)
                             {
                                 float r = Mathf.Abs(pdx / dgx);
                                 if (r > 6f && r < 200f)
@@ -349,7 +368,8 @@ public static class DragSync
                                     if (Mathf.Abs(r - cw) > 1.5f) { _cellPx = r; real += "(已修正)"; }
                                 }
                             }
-                            if (dgy != 0)
+                            else if (dgx != 0) real += $" (x位移仅{dgx}格,不参与校准)";
+                            if (Mathf.Abs(dgy) >= 3)
                             {
                                 float r = Mathf.Abs(pdy / dgy);
                                 if (r > 6f && r < 200f)
@@ -358,6 +378,7 @@ public static class DragSync
                                     if (Mathf.Abs(r - ch) > 1.5f) { _cellPy = r; real += "(已修正)"; }
                                 }
                             }
+                            else if (dgy != 0) real += $" (y位移仅{dgy}格,不参与校准)";
                             CoopLog.Info($"[Coop][拖校准] 推算=({lx},{ly}) 真实=({ms2.minX},{ms2.minY}) "
                                          + $"起点格=({bgx},{bgy}) 格位移=({dgx},{dgy}) 像素位移=({pdx:F0},{pdy:F0}) "
                                          + $"当前cellPx=({cw:F1},{ch:F1}){real}");
