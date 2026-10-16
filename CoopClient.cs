@@ -979,6 +979,7 @@ public static class CoopClient
         {
             WindowSync.ApplyingRemote = true;
             var win = FindWindowByPath(ev.WindowPath);
+            if (win == null) win = FindWindowByTitle(ev.WindowTitle);   // 路径不可靠 → 按标题兜底
             if (win == null)
             {
                 Plugin.Log.LogWarning($"[Coop] 远端窗口未找到: {ev.WindowTitle} [{ev.WindowPath}]");
@@ -999,6 +1000,42 @@ public static class CoopClient
     }
 
     private static readonly System.Collections.Generic.Dictionary<string, PixelWindow> _winCache = new();
+
+    /// <summary>
+    /// 按窗口标题查找 PixelWindow。
+    /// ⚠️ 不能用 FindObjectsOfTypeAll&lt;PixelWindow&gt;() —— PixelWindow 是普通 C# 类、不是 UnityEngine.Object;
+    /// 必须经 TreeNodeRender(MonoBehaviour,持有 window 引用)反查。
+    /// ⚠️ 也不能用场景路径匹配:路径由 GameObject 名拼成,两端同名会被 Unity 加 "(1)" 后缀,天生对不上。
+    /// </summary>
+    public static PixelWindow FindWindowByTitle(string title)
+    {
+        if (string.IsNullOrEmpty(title)) return null;
+        string want = title.Trim();
+        try
+        {
+            // 显式开启"含未激活":窗口未打开时是隐藏状态
+            var all = Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<TreeNodeRender>());
+            if (all == null) return null;
+            for (int i = 0; i < all.Length; i++)
+            {
+                try
+                {
+                    var obj = all[i];
+                    if (obj == null) continue;
+                    var rend = obj.TryCast<TreeNodeRender>();
+                    if (rend == null) continue;
+                    var win = rend.window;
+                    if (win == null) continue;
+                    string t = "";
+                    try { t = (win.titleString ?? "").Trim(); } catch { }
+                    if (t == want) return win;
+                }
+                catch { }
+            }
+        }
+        catch (Exception e) { CoopLog.Detail($"[Coop] 按标题找窗口异常: {e.Message}"); }
+        return null;
+    }
 
     /// <summary>按场景路径查找窗口(缓存 + TreeNodeRender 全量扫描兜底,含未激活)</summary>
     static PixelWindow FindWindowByPath(string path)
