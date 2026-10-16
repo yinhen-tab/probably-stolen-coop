@@ -41,11 +41,17 @@ public static class DragSync
             var rt = ge != null ? ge.rectTransform : null;
             if (rt != null)
             {
-                sp = ToScreen(rt);
+                // ★ 实测:拖动期间主 rectTransform / inner / middle / rotator / background **恒定不动**,
+                //    真正在移动的是 fakeInner 这组"拾起替身层"(游戏 UpdateFakeReal 用的那一组)。
+                Transform vis = null;
+                try { if (ge.fakeInner != null) vis = ge.fakeInner.transform; } catch { }
+                if (vis == null) { try { if (ge.fakeMiddle != null) vis = ge.fakeMiddle.transform; } catch { } }
+                if (vis == null) { try { if (ge.inner != null) vis = ge.inner.transform; } catch { } }
+                sp = vis != null ? TransformToScreen(vis) : ToScreen(rt);
                 nx = sp.x / Mathf.Max(1f, Screen.width);
                 ny = sp.y / Mathf.Max(1f, Screen.height);
                 ok = true;
-                if (_sendCount < 3) info = DescribeItem(ge, rt);   // 只在前几次打细节
+                if (_sendCount < 3) info = (vis != null ? " [用假象层]" : " [用主rt]") + DescribeItem(ge, rt);
             }
         }
         catch { }
@@ -65,6 +71,19 @@ public static class DragSync
         if (_sendCount <= 3 || _sendCount % 10 == 0)
             CoopLog.Info($"[Coop][拖标定发] #{_sendCount} 屏幕=({sp.x:F0},{sp.y:F0}) n=({nx:F3},{ny:F3}){info}");
         CoopClient.SendDrag(true, _hint, _uid, _ident, nx, ny);
+    }
+
+    /// <summary>任意 Transform → 屏幕像素坐标(Overlay 下 position 即屏幕坐标)</summary>
+    static Vector2 TransformToScreen(Transform tr)
+    {
+        Camera cam = null;
+        try
+        {
+            var cv = tr.GetComponentInParent<Canvas>();
+            if (cv != null && cv.renderMode != RenderMode.ScreenSpaceOverlay) cam = cv.worldCamera;
+        }
+        catch { }
+        return RectTransformUtility.WorldToScreenPoint(cam, tr.position);
     }
 
     /// <summary>RectTransform → 屏幕像素坐标(Overlay 下 position 即屏幕坐标;相机模式走 WorldToScreenPoint)</summary>
