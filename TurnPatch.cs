@@ -8,7 +8,7 @@ public static class TurnManagerNextTurnPatch
 {
     public static void Postfix()
     {
-        Plugin.Log.LogInfo($"[Coop] TurnManager.NextTurn 被调用(服务端驱动={CoopClient.IsApplyingServer})");
+        CoopLog.Info($"[Coop] TurnManager.NextTurn 被调用(服务端驱动={CoopClient.IsApplyingServer})");
         CoopClient.OnLocalNextTurn();
     }
 }
@@ -18,7 +18,7 @@ public static class TurnManagerNextNTurnsPatch
 {
     public static void Postfix(int n)
     {
-        Plugin.Log.LogInfo($"[Coop] TurnManager.NextNTurns({n}) 被调用");
+        CoopLog.Info($"[Coop] TurnManager.NextNTurns({n}) 被调用");
         CoopClient.OnLocalNextTurn();
     }
 }
