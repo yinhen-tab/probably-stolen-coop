@@ -259,6 +259,11 @@ message ObjectUse {
   string arg = 8;     // kind=wnd_open/wnd_close:界面键(见 UiWindowSync 表:log/handnote/notebook/map/...)
   int32 idx = 9;      // 需要下标参数的界面(如多页手册)
   string item_id2 = 10; // 需要两个物品参数的界面(如扫描仪:被测物)
+  string text1 = 11;    // 纸张/文书类界面的文本(标题)
+  string text2 = 12;    // 正文
+  string text3 = 13;    // 落款
+  int32 uid1 = 14;      // kind=machine_*:机器物品 uniqueId
+  int32 uid2 = 15;      // kind=machine_start:原料物品 uniqueId
 }
 
 // ---- 电话同步(界面镜像 + 通话可见) ----
@@ -326,4 +331,7 @@ message ItemMove {
   int32 orientation = 6;   // 朝向
   bool flipped = 7;        // 是否翻转
   int32 inv_uid = 8;       // 所在容器物品的 uniqueId(0=主库存) → 支持跨容器转移
+  int32 unit_count = 9;    // 数量(-1=未变化/不适用)
+  int32 durability = 10;   // 当前耐久(-1=该物品没有耐久)
+  int32 max_durability = 11;
 }
