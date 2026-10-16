@@ -78,12 +78,13 @@ public static class ObjectUseSync
             if (msg.Kind == "container_move")
             {
                 // 队友拖动了容器窗口 → 本地把同一个窗口挪过去
-                var w = FindWindowByTitle(_remoteOpenTitle);
+                var w = _remoteWindow != null ? _remoteWindow : FindWindowByTitle(_remoteOpenTitle);
                 if (w != null)
                 {
                     SetWindowPos(w, msg.Wx, msg.Wy);
-                    CoopLog.Detail($"[Coop] 已同步容器窗口位置: ({msg.Wx:0},{msg.Wy:0})");
+                    CoopLog.Info($"[Coop] 已同步容器窗口位置: ({msg.Wx:0},{msg.Wy:0})");
                 }
+                else CoopLog.Warn("[Coop] 容器窗口位置同步失败: 本端还不持有该窗口引用");
                 return;
             }
             if (msg.Kind == "wnd_open" || msg.Kind == "wnd_close")
@@ -119,6 +120,7 @@ public static class ObjectUseSync
     private static string _openItemId = "";      // 本地当前打开的容器物品(用于上报关闭)
     private static string _openItemTitle = "";
     private static PixelWindow _openWindow;      // 本地当前打开的容器窗口(用于同步位置)
+    private static PixelWindow _remoteWindow;    // 镜像过来的远端容器窗口(位置同步用)
     private static float _lastWinX, _lastWinY, _winCheckedAt;
 
     /// <summary>按标题找窗口(共用实现;PixelWindow 不是 UnityEngine.Object,不能用 FindObjectsOfTypeAll)</summary>
@@ -172,7 +174,7 @@ public static class ObjectUseSync
     }
 
     /// <summary>本地打开/关闭了某个物品的容器 → 上报</summary>
-    public static void ReportContainer(bool open, string itemId, string title)
+    public static void ReportContainer(bool open, string itemId, string title, PixelWindow win = null)
     {
         try
         {
@@ -184,9 +186,17 @@ public static class ObjectUseSync
             {
                 _openItemId = itemId;
                 _openItemTitle = title ?? "";
-                _openWindow = FindWindowByTitle(_openItemTitle);   // 窗口已由双击逻辑打开
+                _openWindow = win;                                  // 优先用物品自己的内容窗引用
+                if (_openWindow == null) _openWindow = FindWindowByTitle(_openItemTitle);
                 var wp = WindowPos(_openWindow);
                 _lastWinX = wp.x; _lastWinY = wp.y;
+                if (_openWindow == null)
+                {
+                    // 窗口可能刚创建还没挂上 → 稍后补挂;补挂后 TickWindow 会发 container_move 纠正位置
+                    var it = itemId;
+                    var tt = title;
+                    CoopClient.RunOnMainAfter(0.25f, () => AttachLate(it, tt));
+                }
             }
             else if (itemId != _openItemId) return;
             else { _openItemId = ""; _openItemTitle = ""; _openWindow = null; }
@@ -203,6 +213,36 @@ public static class ObjectUseSync
                          + (open ? $" 窗口({_lastWinX:0},{_lastWinY:0})" : ""));
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop] 容器上报异常: {e.Message}"); }
+    }
+
+    /// <summary>延后补挂本地容器窗口引用(双击后窗口可能还没就绪)</summary>
+    static void AttachLate(string itemId, string title)
+    {
+        try
+        {
+            if (_openItemId != itemId) return;          // 已经关了/换了,不补
+            if (_openWindow != null) return;
+            var ps = PlayerStore.Instance;
+            if (ps == null) return;
+            var all = ps.FindAllItem(true);
+            if (all != null)
+                for (int i = 0; i < all.Count; i++)
+                {
+                    var it = all[i];
+                    if (it == null || it.identifier != itemId) continue;
+                    var w = it.contentWindow;
+                    if (w != null)
+                    {
+                        WindowSync.Register(w);
+                        _openWindow = w;
+                        var p = WindowPos(w);
+                        _lastWinX = p.x; _lastWinY = p.y;
+                        CoopLog.Info($"[Coop] 已补挂容器窗口: {title} ({p.x:0},{p.y:0})");
+                    }
+                    break;
+                }
+        }
+        catch { }
     }
 
     /// <summary>窗口被隐藏:若是本地打开的容器窗口,则上报关闭</summary>
@@ -287,36 +327,64 @@ public static class ObjectUseSync
         {
             if (open)
             {
-                var hs = UnityEngine.Object.FindObjectsOfType<ItemMouseDoubleClickHandler>();
-                if (hs != null && hs.Length > 0)
+                // 用游戏自己的静态实例(比 FindObjectsOfType 可靠;那要求类型是 UnityEngine.Object)
+                var h = ItemMouseDoubleClickHandler.current;
+                if (h == null)
                 {
-                    hs[0].OpenContentAction(item, Vector2.zero);
-                    _remoteOpenTitle = title;      // 记住标题,后续位置同步用
-                    // 应用队友那边的窗口位置(否则本端会开在默认位置)
-                    if (msg.Wx != 0f || msg.Wy != 0f)
-                    {
-                        var w = FindWindowByTitle(title);
-                        SetWindowPos(w, msg.Wx, msg.Wy);
-                    }
-                    CoopLog.Info($"[Coop] 已打开队友的容器: {title} 窗口({msg.Wx:0},{msg.Wy:0})");
+                    var hs = UnityEngine.Object.FindObjectsOfType<ItemMouseDoubleClickHandler>();
+                    if (hs != null && hs.Length > 0) h = hs[0];
                 }
-                else CoopLog.Warn("[Coop] 未找到容器打开处理器,无法镜像容器");
+                if (h == null)
+                {
+                    CoopLog.Warn("[Coop] 未找到容器打开处理器,无法镜像容器");
+                    return;
+                }
+                h.OpenContentAction(item, Vector2.zero);
+                _remoteOpenTitle = title;
+                // 关键:物品自己持有内容窗引用(item.contentWindow) → 不必按标题猜窗口
+                PlaceRemoteWindow(item, msg.Wx, msg.Wy, 0);
+                CoopLog.Info($"[Coop] 已打开队友的容器: {title} → 目标位置({msg.Wx:0},{msg.Wy:0})");
             }
             else
             {
-                // 关闭:按标题找本端那个窗口(PixelWindow 不是 UnityEngine.Object,
-                // 不能再走 FindObjectsOfTypeAll —— 用共用查找:登记表 + TreeNodeRender 反查)
-                string want = !string.IsNullOrEmpty(_remoteOpenTitle) ? _remoteOpenTitle : title;
-                var w = CoopClient.FindWindowByTitle(want);
-                if (w != null)
+                // 关它自己的内容窗(游戏原生方法),不依赖任何窗口查找
+                bool ok = false;
+                try { item.CloseContentWindow(false); ok = true; }
+                catch (Exception e) { CoopLog.Warn($"[Coop] 关闭容器失败: {e.Message}"); }
+                if (!ok)
                 {
-                    w.Hide();
-                    CoopLog.Info($"[Coop] 已关闭队友的容器: {want}");
+                    var w2 = _remoteWindow != null ? _remoteWindow : FindWindowByTitle(title);
+                    if (w2 != null) { w2.Hide(); ok = true; }
                 }
-                else CoopLog.Warn($"[Coop] 关闭容器时没找到本端窗口: {want}");
+                CoopLog.Info($"[Coop] 已关闭队友的容器: {title}{(ok ? "" : " (没找到窗口)")}");
+                _remoteWindow = null; _remoteOpenTitle = "";
             }
         }
         finally { ApplyingContainer = false; WindowSync.ApplyingRemote = prevWin; }
+    }
+
+    /// <summary>
+    /// 把远端容器的窗口摆到队友那边相同的位置。
+    /// item.contentWindow 在 OpenContentAction 之后可能还没就绪 → 每 0.15s 重试,最多 8 次。
+    /// </summary>
+    static void PlaceRemoteWindow(GameItem item, float wx, float wy, int attempt)
+    {
+        try
+        {
+            var w = item != null ? item.contentWindow : null;
+            if (w == null)
+            {
+                if (attempt < 8)
+                    CoopClient.RunOnMainAfter(0.15f, () => PlaceRemoteWindow(item, wx, wy, attempt + 1));
+                else
+                    CoopLog.Warn("[Coop] 容器窗口引用一直拿不到(item.contentWindow 为空),位置无法对齐");
+                return;
+            }
+            WindowSync.Register(w);
+            _remoteWindow = w;
+            if (wx != 0f || wy != 0f) SetWindowPos(w, wx, wy);
+        }
+        catch { }
     }
 
     /// <summary>
@@ -346,7 +414,9 @@ public static class ContainerOpenPatch
             string title = "";
             try { title = newItem.GetDisplayName() ?? ""; } catch { }
             if (string.IsNullOrEmpty(title)) title = id;
-            ObjectUseSync.ReportContainer(true, id, title);
+            PixelWindow win = null;
+            try { win = newItem.contentWindow; if (win != null) WindowSync.Register(win); } catch { }
+            ObjectUseSync.ReportContainer(true, id, title, win);
         }
         catch (Exception e) { CoopLog.Warn($"[Coop] 容器打开上报异常: {e.Message}"); }
     }
