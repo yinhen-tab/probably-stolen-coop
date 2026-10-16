@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <!-- 游戏目录:换盘/换路径只改这一行,或构建时传 -p:GameDir=... -->
+    <GameDir Condition="'$(GameDir)' == ''">F:\SteamLibrary\steamapps\common\Probably Stolen Demo</GameDir>
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>ProbablyStolenCoop</AssemblyName>
     <Nullable>disable</Nullable>
@@ -11,55 +13,55 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="BepInEx.Core">
-      <HintPath>E:\SteamLibrary\steamapps\common\Probably Stolen Demo\BepInEx\core\BepInEx.Core.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\core\BepInEx.Core.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="BepInEx.Unity.IL2CPP">
-      <HintPath>E:\SteamLibrary\steamapps\common\Probably Stolen Demo\BepInEx\core\BepInEx.Unity.IL2CPP.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\core\BepInEx.Unity.IL2CPP.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="0Harmony">
-      <HintPath>E:\SteamLibrary\steamapps\common\Probably Stolen Demo\BepInEx\core\0Harmony.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\core\0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Il2CppInterop.HarmonySupport">
-      <HintPath>E:\SteamLibrary\steamapps\common\Probably Stolen Demo\BepInEx\core\Il2CppInterop.HarmonySupport.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\core\Il2CppInterop.HarmonySupport.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Il2CppInterop.Runtime">
-      <HintPath>E:\SteamLibrary\steamapps\common\Probably Stolen Demo\BepInEx\core\Il2CppInterop.Runtime.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\core\Il2CppInterop.Runtime.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Assembly-CSharp">
-      <HintPath>E:\SteamLibrary\steamapps\common\Probably Stolen Demo\BepInEx\interop\Assembly-CSharp.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\interop\Assembly-CSharp.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Il2Cppmscorlib">
-      <HintPath>E:\SteamLibrary\steamapps\common\Probably Stolen Demo\BepInEx\interop\Il2Cppmscorlib.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\interop\Il2Cppmscorlib.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>E:\SteamLibrary\steamapps\common\Probably Stolen Demo\BepInEx\interop\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\interop\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.UI">
-      <HintPath>E:\SteamLibrary\steamapps\common\Probably Stolen Demo\BepInEx\interop\UnityEngine.UI.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\interop\UnityEngine.UI.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.UIModule">
-      <HintPath>E:\SteamLibrary\steamapps\common\Probably Stolen Demo\BepInEx\interop\UnityEngine.UIModule.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\interop\UnityEngine.UIModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
-      <HintPath>E:\SteamLibrary\steamapps\common\Probably Stolen Demo\BepInEx\interop\UnityEngine.InputLegacyModule.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\interop\UnityEngine.InputLegacyModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
-      <HintPath>E:\SteamLibrary\steamapps\common\Probably Stolen Demo\BepInEx\interop\UnityEngine.TextRenderingModule.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\interop\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Unity.TextMeshPro">
-      <HintPath>E:\SteamLibrary\steamapps\common\Probably Stolen Demo\BepInEx\interop\Unity.TextMeshPro.dll</HintPath>
+      <HintPath>$(GameDir)\BepInEx\interop\Unity.TextMeshPro.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
