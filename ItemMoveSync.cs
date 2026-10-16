@@ -26,6 +26,7 @@ public static class ItemMoveSync
         {
             try
             {
+                if (DragSync.Dragging) return true;          // 我们自己的拖拽标志(可靠)
                 var h = ItemMouseDragHandler.current;
                 return h != null && h.IsDraggingItem;
             }
