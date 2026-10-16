@@ -79,39 +79,42 @@ namespace Coop {
             "FyADKAsyDy5jb29wLkl0ZW1TdGF0ZRIVCg1hdXRob3JpdGF0aXZlGBggASgI",
             "EhkKEWZvdW50YWluX2ludl9qc29uGBkgASgJIkYKDEN1c3RvbWVyTGVmdBIR",
             "CglwbGF5ZXJfaWQYASABKAUSEwoLY3VzdG9tZXJfaWQYAiABKAkSDgoGcmVh",
-            "c29uGAMgASgJIpkBCglPYmplY3RVc2USEQoJcGxheWVyX2lkGAEgASgFEgwK",
+            "c29uGAMgASgJIuIBCglPYmplY3RVc2USEQoJcGxheWVyX2lkGAEgASgFEgwK",
             "BGtpbmQYAiABKAkSCgoCbngYAyABKAISCgoCbnkYBCABKAISDwoHaXRlbV9p",
             "ZBgFIAEoCRIKCgJ3eBgGIAEoAhIKCgJ3eRgHIAEoAhILCgNhcmcYCCABKAkS",
-            "CwoDaWR4GAkgASgFEhAKCGl0ZW1faWQyGAogASgJIlgKCVBob25lU3luYxIR",
-            "CglwbGF5ZXJfaWQYASABKAUSDAoEa2luZBgCIAEoCRIOCgZudW1iZXIYAyAB",
-            "KAMSCwoDYXJnGAQgASgJEg0KBWluZGV4GAUgASgFIkEKB1NmeFN5bmMSEQoJ",
-            "cGxheWVyX2lkGAEgASgFEhIKCmlkZW50aWZpZXIYAiABKAkSDwoHdmFyaWFu",
-            "dBgDIAEoBSJkCg5DbGllbnRCZWhhdmlvchIRCglwbGF5ZXJfaWQYASABKAUS",
-            "EQoJY2xpZW50X2lkGAIgASgJEgwKBGtpbmQYAyABKAkSDgoGZGV0YWlsGAQg",
-            "ASgJEg4KBmFtb3VudBgFIAEoBSIiCg1SZXN5bmNSZXF1ZXN0EhEKCXBsYXll",
-            "cl9pZBgBIAEoBSIgCgtTYXZlUmVxdWVzdBIRCglwbGF5ZXJfaWQYASABKAUi",
-            "VgoIU2F2ZU1ldGESEQoJcGxheWVyX2lkGAEgASgFEgwKBHNsb3QYAiABKAUS",
-            "DQoFdG90YWwYAyABKAUSDAoEaGFzaBgEIAEoCRIMCgRuYW1lGAUgASgJIiYK",
-            "CVNhdmVDaHVuaxILCgNzZXEYASABKAUSDAoEZGF0YRgCIAEoDCIwCgdJbnZT",
-            "eW5jEhEKCXBsYXllcl9pZBgBIAEoBRISCgppdGVtc19qc29uGAIgAygJIpkB",
-            "CghJdGVtTW92ZRIRCglwbGF5ZXJfaWQYASABKAUSEQoJdW5pcXVlX2lkGAIg",
-            "ASgFEhIKCmlkZW50aWZpZXIYAyABKAkSDQoFbWluX3gYBCABKAUSDQoFbWlu",
-            "X3kYBSABKAUSEwoLb3JpZW50YXRpb24YBiABKAUSDwoHZmxpcHBlZBgHIAEo",
-            "CBIPCgdpbnZfdWlkGAggASgFKjAKD1Byb3RvY29sVmVyc2lvbhIVChFQUk9U",
-            "T19VTlNQRUNJRklFRBAAEgYKAlYxEAEquQQKB01zZ1R5cGUSDwoLTVNHX1VO",
-            "S05PV04QABIJCgVIRUxMTxABEgsKB1dFTENPTUUQAhIPCgtDUkVBVEVfUk9P",
-            "TRADEg0KCUpPSU5fUk9PTRAEEg8KC1JPT01fSk9JTkVEEAUSEQoNUExBWUVS",
-            "X0pPSU5FRBAGEg8KC1BMQVlFUl9MRUZUEAcSEAoMQURWQU5DRV9UVVJOEAgS",
-            "EQoNVFVSTl9BRFZBTkNFRBAJEhUKEUVYUEVESVRJT05fUkVTVUxUEAsSFQoR",
-            "RVhQRURJVElPTl9TWU5DRUQQDBIICgRQSU5HEA0SCAoEUE9ORxAOEgkKBUVS",
-            "Uk9SEA8SDgoKQ1VSU09SX1BPUxAQEgwKCFVJX0VWRU5UEBESEAoMUExBWUVS",
-            "X0NMSUNLEBISDgoKR0FNRV9FVkVOVBATEg4KCkRSQUdfU1RBVEUQFBIMCghE",
-            "QVlfU1lOQxAVEhUKEUNMSUVOVF9RVUVVRV9TWU5DEBYSEQoNU0hPUF9TTkFQ",
-            "U0hPVBAXEg4KCk9CSkVDVF9VU0UQGBIOCgpQSE9ORV9TWU5DEBkSEQoNQ1VT",
-            "VE9NRVJfTEVGVBAaEgwKCFNGWF9TWU5DEBsSEwoPQ0xJRU5UX0JFSEFWSU9S",
-            "EBwSEgoOUkVTWU5DX1JFUVVFU1QQHRIQCgxTQVZFX1JFUVVFU1QQHhINCglT",
-            "QVZFX01FVEEQHxIOCgpTQVZFX0NIVU5LECASDAoISU5WX1NZTkMQIRINCglJ",
-            "VEVNX01PVkUQImIGcHJvdG8z"));
+            "CwoDaWR4GAkgASgFEhAKCGl0ZW1faWQyGAogASgJEg0KBXRleHQxGAsgASgJ",
+            "Eg0KBXRleHQyGAwgASgJEg0KBXRleHQzGA0gASgJEgwKBHVpZDEYDiABKAUS",
+            "DAoEdWlkMhgPIAEoBSJYCglQaG9uZVN5bmMSEQoJcGxheWVyX2lkGAEgASgF",
+            "EgwKBGtpbmQYAiABKAkSDgoGbnVtYmVyGAMgASgDEgsKA2FyZxgEIAEoCRIN",
+            "CgVpbmRleBgFIAEoBSJBCgdTZnhTeW5jEhEKCXBsYXllcl9pZBgBIAEoBRIS",
+            "CgppZGVudGlmaWVyGAIgASgJEg8KB3ZhcmlhbnQYAyABKAUiZAoOQ2xpZW50",
+            "QmVoYXZpb3ISEQoJcGxheWVyX2lkGAEgASgFEhEKCWNsaWVudF9pZBgCIAEo",
+            "CRIMCgRraW5kGAMgASgJEg4KBmRldGFpbBgEIAEoCRIOCgZhbW91bnQYBSAB",
+            "KAUiIgoNUmVzeW5jUmVxdWVzdBIRCglwbGF5ZXJfaWQYASABKAUiIAoLU2F2",
+            "ZVJlcXVlc3QSEQoJcGxheWVyX2lkGAEgASgFIlYKCFNhdmVNZXRhEhEKCXBs",
+            "YXllcl9pZBgBIAEoBRIMCgRzbG90GAIgASgFEg0KBXRvdGFsGAMgASgFEgwK",
+            "BGhhc2gYBCABKAkSDAoEbmFtZRgFIAEoCSImCglTYXZlQ2h1bmsSCwoDc2Vx",
+            "GAEgASgFEgwKBGRhdGEYAiABKAwiMAoHSW52U3luYxIRCglwbGF5ZXJfaWQY",
+            "ASABKAUSEgoKaXRlbXNfanNvbhgCIAMoCSLZAQoISXRlbU1vdmUSEQoJcGxh",
+            "eWVyX2lkGAEgASgFEhEKCXVuaXF1ZV9pZBgCIAEoBRISCgppZGVudGlmaWVy",
+            "GAMgASgJEg0KBW1pbl94GAQgASgFEg0KBW1pbl95GAUgASgFEhMKC29yaWVu",
+            "dGF0aW9uGAYgASgFEg8KB2ZsaXBwZWQYByABKAgSDwoHaW52X3VpZBgIIAEo",
+            "BRISCgp1bml0X2NvdW50GAkgASgFEhIKCmR1cmFiaWxpdHkYCiABKAUSFgoO",
+            "bWF4X2R1cmFiaWxpdHkYCyABKAUqMAoPUHJvdG9jb2xWZXJzaW9uEhUKEVBS",
+            "T1RPX1VOU1BFQ0lGSUVEEAASBgoCVjEQASq5BAoHTXNnVHlwZRIPCgtNU0df",
+            "VU5LTk9XThAAEgkKBUhFTExPEAESCwoHV0VMQ09NRRACEg8KC0NSRUFURV9S",
+            "T09NEAMSDQoJSk9JTl9ST09NEAQSDwoLUk9PTV9KT0lORUQQBRIRCg1QTEFZ",
+            "RVJfSk9JTkVEEAYSDwoLUExBWUVSX0xFRlQQBxIQCgxBRFZBTkNFX1RVUk4Q",
+            "CBIRCg1UVVJOX0FEVkFOQ0VEEAkSFQoRRVhQRURJVElPTl9SRVNVTFQQCxIV",
+            "ChFFWFBFRElUSU9OX1NZTkNFRBAMEggKBFBJTkcQDRIICgRQT05HEA4SCQoF",
+            "RVJST1IQDxIOCgpDVVJTT1JfUE9TEBASDAoIVUlfRVZFTlQQERIQCgxQTEFZ",
+            "RVJfQ0xJQ0sQEhIOCgpHQU1FX0VWRU5UEBMSDgoKRFJBR19TVEFURRAUEgwK",
+            "CERBWV9TWU5DEBUSFQoRQ0xJRU5UX1FVRVVFX1NZTkMQFhIRCg1TSE9QX1NO",
+            "QVBTSE9UEBcSDgoKT0JKRUNUX1VTRRAYEg4KClBIT05FX1NZTkMQGRIRCg1D",
+            "VVNUT01FUl9MRUZUEBoSDAoIU0ZYX1NZTkMQGxITCg9DTElFTlRfQkVIQVZJ",
+            "T1IQHBISCg5SRVNZTkNfUkVRVUVTVBAdEhAKDFNBVkVfUkVRVUVTVBAeEg0K",
+            "CVNBVkVfTUVUQRAfEg4KClNBVkVfQ0hVTksQIBIMCghJTlZfU1lOQxAhEg0K",
+            "CUlURU1fTU9WRRAiYgZwcm90bzM="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { },
           new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Coop.ProtocolVersion), typeof(global::Coop.MsgType), }, null, new pbr::GeneratedClrTypeInfo[] {
@@ -143,7 +146,7 @@ namespace Coop {
             new pbr::GeneratedClrTypeInfo(typeof(global::Coop.ItemState), global::Coop.ItemState.Parser, new[]{ "Id", "Count" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Coop.StoreSnapshot), global::Coop.StoreSnapshot.Parser, new[]{ "PlayerId", "Cash", "Day", "DayUntilRent", "RentValue", "DayUntilLoan", "LoanValue", "RetailMarkup", "ContrLow", "ContrMid", "ContrHigh", "ContrCritical", "BaseAttractiveness", "ProjectorBonus", "DealmakerBonus", "GarbageLevel", "IsPowerOn", "MachineryBought", "Services", "Reputations", "CassetteInvJson", "VendingInvJson", "Items", "Authoritative", "FountainInvJson" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Coop.CustomerLeft), global::Coop.CustomerLeft.Parser, new[]{ "PlayerId", "CustomerId", "Reason" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Coop.ObjectUse), global::Coop.ObjectUse.Parser, new[]{ "PlayerId", "Kind", "Nx", "Ny", "ItemId", "Wx", "Wy", "Arg", "Idx", "ItemId2" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Coop.ObjectUse), global::Coop.ObjectUse.Parser, new[]{ "PlayerId", "Kind", "Nx", "Ny", "ItemId", "Wx", "Wy", "Arg", "Idx", "ItemId2", "Text1", "Text2", "Text3", "Uid1", "Uid2" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Coop.PhoneSync), global::Coop.PhoneSync.Parser, new[]{ "PlayerId", "Kind", "Number", "Arg", "Index" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Coop.SfxSync), global::Coop.SfxSync.Parser, new[]{ "PlayerId", "Identifier", "Variant" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Coop.ClientBehavior), global::Coop.ClientBehavior.Parser, new[]{ "PlayerId", "ClientId", "Kind", "Detail", "Amount" }, null, null, null, null),
@@ -152,7 +155,7 @@ namespace Coop {
             new pbr::GeneratedClrTypeInfo(typeof(global::Coop.SaveMeta), global::Coop.SaveMeta.Parser, new[]{ "PlayerId", "Slot", "Total", "Hash", "Name" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Coop.SaveChunk), global::Coop.SaveChunk.Parser, new[]{ "Seq", "Data" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Coop.InvSync), global::Coop.InvSync.Parser, new[]{ "PlayerId", "ItemsJson" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Coop.ItemMove), global::Coop.ItemMove.Parser, new[]{ "PlayerId", "UniqueId", "Identifier", "MinX", "MinY", "Orientation", "Flipped", "InvUid" }, null, null, null, null)
+            new pbr::GeneratedClrTypeInfo(typeof(global::Coop.ItemMove), global::Coop.ItemMove.Parser, new[]{ "PlayerId", "UniqueId", "Identifier", "MinX", "MinY", "Orientation", "Flipped", "InvUid", "UnitCount", "Durability", "MaxDurability" }, null, null, null, null)
           }));
     }
     #endregion
@@ -8452,6 +8455,11 @@ namespace Coop {
       arg_ = other.arg_;
       idx_ = other.idx_;
       itemId2_ = other.itemId2_;
+      text1_ = other.text1_;
+      text2_ = other.text2_;
+      text3_ = other.text3_;
+      uid1_ = other.uid1_;
+      uid2_ = other.uid2_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -8606,6 +8614,81 @@ namespace Coop {
       }
     }
 
+    /// <summary>Field number for the "text1" field.</summary>
+    public const int Text1FieldNumber = 11;
+    private string text1_ = "";
+    /// <summary>
+    /// 纸张/文书类界面的文本(标题)
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Text1 {
+      get { return text1_; }
+      set {
+        text1_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "text2" field.</summary>
+    public const int Text2FieldNumber = 12;
+    private string text2_ = "";
+    /// <summary>
+    /// 正文
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Text2 {
+      get { return text2_; }
+      set {
+        text2_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "text3" field.</summary>
+    public const int Text3FieldNumber = 13;
+    private string text3_ = "";
+    /// <summary>
+    /// 落款
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Text3 {
+      get { return text3_; }
+      set {
+        text3_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "uid1" field.</summary>
+    public const int Uid1FieldNumber = 14;
+    private int uid1_;
+    /// <summary>
+    /// kind=machine_*:机器物品 uniqueId
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int Uid1 {
+      get { return uid1_; }
+      set {
+        uid1_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "uid2" field.</summary>
+    public const int Uid2FieldNumber = 15;
+    private int uid2_;
+    /// <summary>
+    /// kind=machine_start:原料物品 uniqueId
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int Uid2 {
+      get { return uid2_; }
+      set {
+        uid2_ = value;
+      }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -8631,6 +8714,11 @@ namespace Coop {
       if (Arg != other.Arg) return false;
       if (Idx != other.Idx) return false;
       if (ItemId2 != other.ItemId2) return false;
+      if (Text1 != other.Text1) return false;
+      if (Text2 != other.Text2) return false;
+      if (Text3 != other.Text3) return false;
+      if (Uid1 != other.Uid1) return false;
+      if (Uid2 != other.Uid2) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -8648,6 +8736,11 @@ namespace Coop {
       if (Arg.Length != 0) hash ^= Arg.GetHashCode();
       if (Idx != 0) hash ^= Idx.GetHashCode();
       if (ItemId2.Length != 0) hash ^= ItemId2.GetHashCode();
+      if (Text1.Length != 0) hash ^= Text1.GetHashCode();
+      if (Text2.Length != 0) hash ^= Text2.GetHashCode();
+      if (Text3.Length != 0) hash ^= Text3.GetHashCode();
+      if (Uid1 != 0) hash ^= Uid1.GetHashCode();
+      if (Uid2 != 0) hash ^= Uid2.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -8706,6 +8799,26 @@ namespace Coop {
         output.WriteRawTag(82);
         output.WriteString(ItemId2);
       }
+      if (Text1.Length != 0) {
+        output.WriteRawTag(90);
+        output.WriteString(Text1);
+      }
+      if (Text2.Length != 0) {
+        output.WriteRawTag(98);
+        output.WriteString(Text2);
+      }
+      if (Text3.Length != 0) {
+        output.WriteRawTag(106);
+        output.WriteString(Text3);
+      }
+      if (Uid1 != 0) {
+        output.WriteRawTag(112);
+        output.WriteInt32(Uid1);
+      }
+      if (Uid2 != 0) {
+        output.WriteRawTag(120);
+        output.WriteInt32(Uid2);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -8756,6 +8869,26 @@ namespace Coop {
         output.WriteRawTag(82);
         output.WriteString(ItemId2);
       }
+      if (Text1.Length != 0) {
+        output.WriteRawTag(90);
+        output.WriteString(Text1);
+      }
+      if (Text2.Length != 0) {
+        output.WriteRawTag(98);
+        output.WriteString(Text2);
+      }
+      if (Text3.Length != 0) {
+        output.WriteRawTag(106);
+        output.WriteString(Text3);
+      }
+      if (Uid1 != 0) {
+        output.WriteRawTag(112);
+        output.WriteInt32(Uid1);
+      }
+      if (Uid2 != 0) {
+        output.WriteRawTag(120);
+        output.WriteInt32(Uid2);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -8795,6 +8928,21 @@ namespace Coop {
       }
       if (ItemId2.Length != 0) {
         size += 1 + pb::CodedOutputStream.ComputeStringSize(ItemId2);
+      }
+      if (Text1.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Text1);
+      }
+      if (Text2.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Text2);
+      }
+      if (Text3.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Text3);
+      }
+      if (Uid1 != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeInt32Size(Uid1);
+      }
+      if (Uid2 != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeInt32Size(Uid2);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -8837,6 +8985,21 @@ namespace Coop {
       }
       if (other.ItemId2.Length != 0) {
         ItemId2 = other.ItemId2;
+      }
+      if (other.Text1.Length != 0) {
+        Text1 = other.Text1;
+      }
+      if (other.Text2.Length != 0) {
+        Text2 = other.Text2;
+      }
+      if (other.Text3.Length != 0) {
+        Text3 = other.Text3;
+      }
+      if (other.Uid1 != 0) {
+        Uid1 = other.Uid1;
+      }
+      if (other.Uid2 != 0) {
+        Uid2 = other.Uid2;
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -8893,6 +9056,26 @@ namespace Coop {
             ItemId2 = input.ReadString();
             break;
           }
+          case 90: {
+            Text1 = input.ReadString();
+            break;
+          }
+          case 98: {
+            Text2 = input.ReadString();
+            break;
+          }
+          case 106: {
+            Text3 = input.ReadString();
+            break;
+          }
+          case 112: {
+            Uid1 = input.ReadInt32();
+            break;
+          }
+          case 120: {
+            Uid2 = input.ReadInt32();
+            break;
+          }
         }
       }
     #endif
@@ -8946,6 +9129,26 @@ namespace Coop {
           }
           case 82: {
             ItemId2 = input.ReadString();
+            break;
+          }
+          case 90: {
+            Text1 = input.ReadString();
+            break;
+          }
+          case 98: {
+            Text2 = input.ReadString();
+            break;
+          }
+          case 106: {
+            Text3 = input.ReadString();
+            break;
+          }
+          case 112: {
+            Uid1 = input.ReadInt32();
+            break;
+          }
+          case 120: {
+            Uid2 = input.ReadInt32();
             break;
           }
         }
@@ -11174,6 +11377,9 @@ namespace Coop {
       orientation_ = other.orientation_;
       flipped_ = other.flipped_;
       invUid_ = other.invUid_;
+      unitCount_ = other.unitCount_;
+      durability_ = other.durability_;
+      maxDurability_ = other.maxDurability_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -11300,6 +11506,48 @@ namespace Coop {
       }
     }
 
+    /// <summary>Field number for the "unit_count" field.</summary>
+    public const int UnitCountFieldNumber = 9;
+    private int unitCount_;
+    /// <summary>
+    /// 数量(-1=未变化/不适用)
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int UnitCount {
+      get { return unitCount_; }
+      set {
+        unitCount_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "durability" field.</summary>
+    public const int DurabilityFieldNumber = 10;
+    private int durability_;
+    /// <summary>
+    /// 当前耐久(-1=该物品没有耐久)
+    /// </summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int Durability {
+      get { return durability_; }
+      set {
+        durability_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "max_durability" field.</summary>
+    public const int MaxDurabilityFieldNumber = 11;
+    private int maxDurability_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int MaxDurability {
+      get { return maxDurability_; }
+      set {
+        maxDurability_ = value;
+      }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -11323,6 +11571,9 @@ namespace Coop {
       if (Orientation != other.Orientation) return false;
       if (Flipped != other.Flipped) return false;
       if (InvUid != other.InvUid) return false;
+      if (UnitCount != other.UnitCount) return false;
+      if (Durability != other.Durability) return false;
+      if (MaxDurability != other.MaxDurability) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -11338,6 +11589,9 @@ namespace Coop {
       if (Orientation != 0) hash ^= Orientation.GetHashCode();
       if (Flipped != false) hash ^= Flipped.GetHashCode();
       if (InvUid != 0) hash ^= InvUid.GetHashCode();
+      if (UnitCount != 0) hash ^= UnitCount.GetHashCode();
+      if (Durability != 0) hash ^= Durability.GetHashCode();
+      if (MaxDurability != 0) hash ^= MaxDurability.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -11388,6 +11642,18 @@ namespace Coop {
         output.WriteRawTag(64);
         output.WriteInt32(InvUid);
       }
+      if (UnitCount != 0) {
+        output.WriteRawTag(72);
+        output.WriteInt32(UnitCount);
+      }
+      if (Durability != 0) {
+        output.WriteRawTag(80);
+        output.WriteInt32(Durability);
+      }
+      if (MaxDurability != 0) {
+        output.WriteRawTag(88);
+        output.WriteInt32(MaxDurability);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -11430,6 +11696,18 @@ namespace Coop {
         output.WriteRawTag(64);
         output.WriteInt32(InvUid);
       }
+      if (UnitCount != 0) {
+        output.WriteRawTag(72);
+        output.WriteInt32(UnitCount);
+      }
+      if (Durability != 0) {
+        output.WriteRawTag(80);
+        output.WriteInt32(Durability);
+      }
+      if (MaxDurability != 0) {
+        output.WriteRawTag(88);
+        output.WriteInt32(MaxDurability);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -11463,6 +11741,15 @@ namespace Coop {
       }
       if (InvUid != 0) {
         size += 1 + pb::CodedOutputStream.ComputeInt32Size(InvUid);
+      }
+      if (UnitCount != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeInt32Size(UnitCount);
+      }
+      if (Durability != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeInt32Size(Durability);
+      }
+      if (MaxDurability != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeInt32Size(MaxDurability);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -11499,6 +11786,15 @@ namespace Coop {
       }
       if (other.InvUid != 0) {
         InvUid = other.InvUid;
+      }
+      if (other.UnitCount != 0) {
+        UnitCount = other.UnitCount;
+      }
+      if (other.Durability != 0) {
+        Durability = other.Durability;
+      }
+      if (other.MaxDurability != 0) {
+        MaxDurability = other.MaxDurability;
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -11547,6 +11843,18 @@ namespace Coop {
             InvUid = input.ReadInt32();
             break;
           }
+          case 72: {
+            UnitCount = input.ReadInt32();
+            break;
+          }
+          case 80: {
+            Durability = input.ReadInt32();
+            break;
+          }
+          case 88: {
+            MaxDurability = input.ReadInt32();
+            break;
+          }
         }
       }
     #endif
@@ -11592,6 +11900,18 @@ namespace Coop {
           }
           case 64: {
             InvUid = input.ReadInt32();
+            break;
+          }
+          case 72: {
+            UnitCount = input.ReadInt32();
+            break;
+          }
+          case 80: {
+            Durability = input.ReadInt32();
+            break;
+          }
+          case 88: {
+            MaxDurability = input.ReadInt32();
             break;
           }
         }
