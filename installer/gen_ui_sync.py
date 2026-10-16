@@ -188,14 +188,14 @@ def gen_patches():
             L.append('[HarmonyPatch(typeof(%s), nameof(%s.%s))]' % (cls, cls, op))
             L.append('public static class UiOpen_%s' % key)
             L.append('{')
-            L.append('    public static void Postfix(GameItem a, GameItem b) { UiWindowSync.ReportOpen("%s", a, b); }' % key)
+            L.append('    public static void Postfix(GameItem __0, GameItem __1) { UiWindowSync.ReportOpen("%s", __0, __1); }' % key)
             L.append('}')
         elif kind == 'item':
             L.append('')
             L.append('[HarmonyPatch(typeof(%s), nameof(%s.%s))]' % (cls, cls, op))
             L.append('public static class UiOpen_%s' % key)
             L.append('{')
-            L.append('    public static void Postfix(GameItem a) { UiWindowSync.ReportOpen("%s", a); }' % key)
+            L.append('    public static void Postfix(GameItem __0) { UiWindowSync.ReportOpen("%s", __0); }' % key)
             L.append('}')
         elif kind == 'none':
             L.append('')
@@ -209,7 +209,7 @@ def gen_patches():
             L.append('[HarmonyPatch(typeof(%s), nameof(%s.%s))]' % (cls, cls, op))
             L.append('public static class UiOpen_%s' % key)
             L.append('{')
-            L.append('    public static void Postfix(int idx) { UiWindowSync.ReportOpen("%s", null, idx); }' % key)
+            L.append('    public static void Postfix(int __0) { UiWindowSync.ReportOpen("%s", null, __0); }' % key)
             L.append('}')
         elif kind == 'bool':
             L.append('')
