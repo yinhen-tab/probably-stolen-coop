@@ -351,6 +351,10 @@ public static class CoopClient
                     int u = duid; string idn = dident; int mx = dgx, my = dgy;
                     RunOnMain(() => ItemMoveSync.ApplyDragTarget(u, idn, mx, my));
                 }
+                else if (!dragging)
+                {
+                    RunOnMain(() => ItemMoveSync.ClearDragHighlight());   // 拖动结束:清掉绿色占用格
+                }
                 break;
             }
             case MsgType.CustomerLeft:
