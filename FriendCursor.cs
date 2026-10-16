@@ -62,6 +62,15 @@ public static class FriendCursor
     private static bool _dragBaseSet;         // 起点已标定
     private static float _dragStartAt;
     private static bool _dragGhostUsed;
+    private static bool _diagDone;      // 每次拖动只报一条诊断
+    private static bool _followed;      // 本次拖动是否成功跟随过
+
+    static void Diag(string msg)
+    {
+        if (_diagDone) return;
+        _diagDone = true;
+        CoopLog.Info($"[Coop] 拖动跟随: {msg}" + (_dragItem != null ? $" (物品 {_dragItem.identifier} uid={_dragItem.uniqueId})" : " (物品为空)"));
+    }
 
     /// <summary>队友鼠标位置(屏幕像素)换算到某个库存的局部坐标</summary>
     static bool ToInvLocal(RectTransform rt, float screenX, float screenY, out Vector2 local)
@@ -85,13 +94,14 @@ public static class FriendCursor
         {
             var inv = ItemMoveSync.GridOf(_dragItem);
             var rt = inv != null ? inv.rectTransform : null;
-            if (rt == null) return;
-            if (!ToInvLocal(rt, _tgtX, _tgtY, out var local)) return;
+            if (rt == null) { Diag("跟随失败: 物品没有可用的库存 rectTransform"); return; }
+            if (!ToInvLocal(rt, _tgtX, _tgtY, out var local))
+            { Diag("跟随失败: 屏幕坐标无法换算到库存局部坐标"); return; }
 
             if (!_dragBaseSet)
             {
                 var sh = ItemMoveSync.Placed(_dragItem);
-                if (sh == null) return;
+                if (sh == null) { Diag("跟随失败: 拿不到物品形状"); return; }
                 _dragBasePx = ItemMoveSync.ToPixel(inv, sh, sh.minX, sh.minY);
                 _dragBaseLocal = local;
                 _dragBaseSet = true;
@@ -99,7 +109,9 @@ public static class FriendCursor
             }
             var target = _dragBasePx + (local - _dragBaseLocal);
             var ge = _dragItem.TryCast<GameItemElement>();
-            if (ge != null) ge.SetCenteredPosition(target.x, target.y);
+            if (ge == null) { Diag("跟随失败: 物品不是 GameItemElement"); return; }
+            ge.SetCenteredPosition(target.x, target.y);
+            _followed = true;
         }
         catch { }
     }
@@ -184,16 +196,22 @@ public static class FriendCursor
                 _dragItem = (uid != 0 || !string.IsNullOrEmpty(ident))
                     ? ItemMoveSync.FindItem(uid, ident) : null;
                 _dragBaseSet = false;
+                _diagDone = false;
+                _followed = false;
                 _dragStartAt = Time.unscaledTime;
+                if (_dragItem == null)
+                    CoopLog.Info($"[Coop] 队友开始拖动,但本端找不到该物品(uid={uid} {ident}) → 只显示提示");
+                else
+                    CoopLog.Info($"[Coop] 队友开始拖动: {_dragItem.identifier} uid={uid}");
             }
             else
             {
                 _dragItem = null;
                 _dragBaseSet = false;
             }
-            // 只有"找不到物品本体"时才显示幽灵文字(找到了就让物品自己动,和单机一致)
-            bool ghost = dragging && _dragItem == null && _visible
-                         && Time.unscaledTime - _dragStartAt > 0.25f;
+            // 拖动期间始终显示提示:即使物品跟随生效也应该让人"知道对方在拖";
+            // (之前只在找不到物品时才显示 → 跟随失败时用户既看不到跟随也不知道对方在拖)
+            bool ghost = dragging && _visible;
             if (_dragGhost != null) _dragGhost.SetActive(ghost);
             if (_dragLabel != null)
                 _dragLabel.text = string.IsNullOrEmpty(hint) ? "拖动中…" : ("拖动中: " + hint);
