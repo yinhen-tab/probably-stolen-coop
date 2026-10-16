@@ -20,6 +20,14 @@ public static class DragSync
     private static string _ident = "";
     private static float _lastPosAt;
 
+    // ---------- 目标格推算(拖动跟手) ----------
+    private static bool _baseSet;                 // 起点已标定
+    private static float _basePx, _basePy;        // 起点:假象层屏幕像素
+    private static int _baseGX = -1, _baseGY = -1;// 起点:物品所在格
+    private static float _cellPx = 0f, _cellPy = 0f;  // 每格多少屏幕像素(实测/推算)
+    private static int _lastGX = -1, _lastGY = -1;
+    private static float _lastSpX, _lastSpY;
+
     /// <summary>
     /// 拖动期间持续上报"被拖物品在哪"(归一化屏幕坐标,50ms 一次)。
     /// 对端只取相对起点的**增量**,所以不需要处理坐标原点/pivot/分辨率差异。
@@ -67,10 +75,58 @@ public static class DragSync
             catch { return; }
         }
         _sendCount++;
+
+        // ---- 用假象层位移推算"目标格"(发送端自己算,接收端照格摆放) ----
+        int gx = -1, gy = -1;
+        try
+        {
+            var ge2 = _dragItem != null ? _dragItem.TryCast<GameItemElement>() : null;
+            if (ge2 != null)
+            {
+                if (!_baseSet)
+                {
+                    _basePx = sp.x; _basePy = sp.y;
+                    var ms0 = ge2.modifiedShape;
+                    if (ms0 != null) { _baseGX = ms0.minX; _baseGY = ms0.minY; }
+                    int sw0 = ms0 != null ? Mathf.Max(1, ms0.width) : 1;
+                    int sh0 = ms0 != null ? Mathf.Max(1, ms0.height) : 1;
+                    float rawW = 0f, rawH = 0f, sf = 1f;
+                    try { rawW = ge2.widthPixels / (float)sw0; } catch { }
+                    try { rawH = ge2.heightPixels / (float)sh0; } catch { }
+                    try
+                    {
+                        var rtc = ge2.rectTransform;
+                        var cv = rtc != null ? rtc.GetComponentInParent<Canvas>() : null;
+                        if (cv != null && cv.scaleFactor > 0.01f) sf = cv.scaleFactor;
+                    }
+                    catch { }
+                    // widthPixels 若为 canvas 单位则需乘 scaleFactor;结果不合理就退回实测值 32
+                    float cw = rawW > 1f ? rawW * sf : 32f;
+                    float ch = rawH > 1f ? rawH * sf : 32f;
+                    if (cw < 6f || cw > 200f) cw = 32f;
+                    if (ch < 6f || ch > 200f) ch = 32f;
+                    _cellPx = cw; _cellPy = ch;
+                    _baseSet = true;
+                    CoopLog.Info($"[Coop][拖格子] widthPixels=({SafeW(ge2)},{SafeH(ge2)}) shape=({sw0},{sh0}) "
+                                 + $"raw=({rawW:F1},{rawH:F1}) scale={sf:F2} cellPx=({_cellPx:F1},{_cellPy:F1}) "
+                                 + $"起始格=({_baseGX},{_baseGY}) 起始像素=({_basePx:F0},{_basePy:F0})");
+                }
+                _lastSpX = sp.x; _lastSpY = sp.y;
+                if (_baseGX >= 0 && _cellPx > 2f && _cellPy > 2f)
+                {
+                    // Unity 屏幕 y 向上、网格 y 向下 → y 取负
+                    gx = _baseGX + Mathf.RoundToInt((sp.x - _basePx) / _cellPx);
+                    gy = _baseGY - Mathf.RoundToInt((sp.y - _basePy) / _cellPy);
+                }
+                _lastGX = gx; _lastGY = gy;
+            }
+        }
+        catch { }
+
         // 诊断:确认拖动期间坐标到底动不动、动在哪个节点上
         if (_sendCount <= 3 || _sendCount % 10 == 0)
-            CoopLog.Info($"[Coop][拖标定发] #{_sendCount} 屏幕=({sp.x:F0},{sp.y:F0}) n=({nx:F3},{ny:F3}){info}");
-        CoopClient.SendDrag(true, _hint, _uid, _ident, nx, ny);
+            CoopLog.Info($"[Coop][拖标定发] #{_sendCount} 屏幕=({sp.x:F0},{sp.y:F0}) n=({nx:F3},{ny:F3}) 目标格=({gx},{gy}){info}");
+        CoopClient.SendDrag(true, _hint, _uid, _ident, gx, gy);
     }
 
     /// <summary>任意 Transform → 屏幕像素坐标(Overlay 下 position 即屏幕坐标)</summary>
@@ -85,6 +141,9 @@ public static class DragSync
         catch { }
         return RectTransformUtility.WorldToScreenPoint(cam, tr.position);
     }
+
+    static int SafeW(GameItemElement ge) { try { return ge.widthPixels; } catch { return -1; } }
+    static int SafeH(GameItemElement ge) { try { return ge.heightPixels; } catch { return -1; } }
 
     /// <summary>RectTransform → 屏幕像素坐标(Overlay 下 position 即屏幕坐标;相机模式走 WorldToScreenPoint)</summary>
     static Vector2 ToScreen(RectTransform rt)
@@ -111,6 +170,9 @@ public static class DragSync
             string s = $" 画布={Screen.width}x{Screen.height} mode={(cv != null ? cv.renderMode.ToString() : "无")}"
                      + $" scale={(cv != null ? cv.scaleFactor : 0f):F2}";
             s += " | 主rt=" + rt.position.ToString("F0") + "/" + rt.anchoredPosition.ToString("F0");
+            // 落点候选:游戏自己算的"会落在哪一格"(modifiedShape=当前格 / tempShape=拖拽预览)
+            try { var ms = ge.modifiedShape; if (ms != null) s += $" modShape=({ms.minX},{ms.minY})"; } catch { }
+            try { var ts = ge.tempShape; if (ts != null) s += $" tempShape=({ts.minX},{ts.minY})"; } catch { }
             s += NodeP(ge.handler, "handler");
             s += NodeP(ge.inner, "inner");
             s += NodeP(ge.middle, "middle");
@@ -258,6 +320,52 @@ public static class DragSync
             {
                 _dragItem = gi; _hint = hint ?? ""; _uid = uid; _ident = ident ?? "";
                 _lastPosAt = 0f;      // 立刻发第一帧位置
+                _baseSet = false; _baseGX = -1; _lastGX = -1; _lastGY = -1;
+            }
+            else if (gi != null)
+            {
+                // 松手:延迟读游戏提交的**真实落点**,与我们的推算对比(自校准)
+                var it2 = gi; int lx = _lastGX, ly = _lastGY;
+                int bgx = _baseGX, bgy = _baseGY;
+                float bpx = _basePx, bpy = _basePy, lpx = _lastSpX, lpy = _lastSpY, cw = _cellPx, ch = _cellPy;
+                try
+                {
+                    CoopClient.RunOnMainAfter(0.15f, () =>
+                    {
+                        try
+                        {
+                            var ms2 = it2.modifiedShape;
+                            if (ms2 == null) return;
+                            int dgx = ms2.minX - bgx, dgy = ms2.minY - bgy;
+                            float pdx = lpx - bpx, pdy = lpy - bpy;
+                            string real = "";
+                            // 用"真实格位移"反算每格像素 —— 与当前值不符就自动修正(下次拖动即准)
+                            if (dgx != 0)
+                            {
+                                float r = Mathf.Abs(pdx / dgx);
+                                if (r > 6f && r < 200f)
+                                {
+                                    real += $" 实测cellPx={r:F1}";
+                                    if (Mathf.Abs(r - cw) > 1.5f) { _cellPx = r; real += "(已修正)"; }
+                                }
+                            }
+                            if (dgy != 0)
+                            {
+                                float r = Mathf.Abs(pdy / dgy);
+                                if (r > 6f && r < 200f)
+                                {
+                                    real += $" 实测cellPy={r:F1}";
+                                    if (Mathf.Abs(r - ch) > 1.5f) { _cellPy = r; real += "(已修正)"; }
+                                }
+                            }
+                            CoopLog.Info($"[Coop][拖校准] 推算=({lx},{ly}) 真实=({ms2.minX},{ms2.minY}) "
+                                         + $"起点格=({bgx},{bgy}) 格位移=({dgx},{dgy}) 像素位移=({pdx:F0},{pdy:F0}) "
+                                         + $"当前cellPx=({cw:F1},{ch:F1}){real}");
+                        }
+                        catch { }
+                    });
+                }
+                catch { }
             }
         }
         catch (Exception e) { why = " [取物品异常: " + e.Message + "]"; }
