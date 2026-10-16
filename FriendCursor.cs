@@ -64,6 +64,7 @@ public static class FriendCursor
     private static bool _dragGhostUsed;
     private static bool _diagDone;      // 每次拖动只报一条诊断
     private static bool _followed;      // 本次拖动是否成功跟随过
+    private static bool _warnedOldPeer; // "对方版本旧"只提示一次
 
     static void Diag(string msg)
     {
@@ -200,7 +201,17 @@ public static class FriendCursor
                 _followed = false;
                 _dragStartAt = Time.unscaledTime;
                 if (_dragItem == null)
-                    CoopLog.Info($"[Coop] 队友开始拖动,但本端找不到该物品(uid={uid} {ident}) → 只显示提示");
+                {
+                    CoopLog.Info($"[Coop] 队友开始拖动,但本端找不到该物品(uid={uid} ident='{ident}') → 只显示提示");
+                    // uid 和 ident 都为空 = 对方根本没告诉我们拖的是哪一件 ——
+                    // 只有一个原因:对方的 mod 是旧版(那时候 DragState 还没带物品标识)
+                    if (uid == 0 && string.IsNullOrEmpty(ident) && !_warnedOldPeer)
+                    {
+                        _warnedOldPeer = true;
+                        CoopLog.Warn("[Coop] ⚠ 对方 mod 版本较旧:收不到\"拖的是哪一件\",物品跟随不会生效。"
+                                     + "请让对方重新安装最新的一键包(install.bat 会打印版本号,可截图核对)。");
+                    }
+                }
                 else
                     CoopLog.Info($"[Coop] 队友开始拖动: {_dragItem.identifier} uid={uid}");
             }
