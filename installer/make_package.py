@@ -17,6 +17,7 @@ import datetime
 import os
 import shutil
 import sys
+import tempfile
 import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -109,7 +110,10 @@ def main():
         print('[x] 游戏目录无效:', GAME)
         sys.exit(1)
 
-    stage = os.path.join(OUT, '_stage')
+    # 暂存目录放在系统临时目录 —— 绝不能放 dist 里!
+    # (曾经把 stage 放 dist 下,留下散装的 install.bat + payload,
+    #  用户误点了 dist\install.bat,结果装上了旁边的旧 payload → 装成旧版,排查了很久)
+    stage = os.path.join(tempfile.gettempdir(), 'ps_pkg_stage')
     if os.path.exists(stage):
         shutil.rmtree(stage)
     payload = os.path.join(stage, 'payload')
@@ -230,7 +234,16 @@ def main():
             for f in files:
                 p = os.path.join(root, f)
                 z.write(p, os.path.relpath(p, stage))
-    shutil.rmtree(stage)
+    shutil.rmtree(stage, ignore_errors=True)
+
+    # 只提醒、不删:dist 里可能有用户自己解压出来的副本(曾经有人误点 dist\install.bat,
+    # 结果装上了旁边那份旧 payload → 装成旧版)。这里绝不主动删用户的东西。
+    others = [n for n in sorted(os.listdir(OUT)) if n != os.path.basename(zip_path)]
+    if others:
+        print('      注意: %s 里还有其它文件/目录(%s)' % (OUT, ', '.join(others)))
+        print('            如果那是你解压出来的副本,请勿双击其中的 install.bat ——')
+        print('            它用的是同目录下的 payload,可能不是本次打出来的包。')
+
     size_mb = os.path.getsize(zip_path) / 1024 / 1024
     print('完成: %s (%.1f MB)' % (zip_path, size_mb))
     print('给朋友: 解压后双击 install.bat 即可。')
