@@ -66,7 +66,7 @@ public static class SaveGuard
         {
             if (CoopClient.IsHost)
             {
-                Plugin.Log.LogInfo("[Coop][存档] 房主身份:使用自己的存档,无需备份");
+                CoopLog.Info("[Coop][存档] 房主身份:使用自己的存档,无需备份");
                 return;
             }
             var sdir = SaveDir;
@@ -78,7 +78,7 @@ public static class SaveGuard
             }
             if (File.Exists(Path.Combine(bdir, FlagName)))
             {
-                Plugin.Log.LogInfo("[Coop][存档] 已有未恢复的备份,跳过本次备份(避免覆盖原始备份)");
+                CoopLog.Info("[Coop][存档] 已有未恢复的备份,跳过本次备份(避免覆盖原始备份)");
                 return;
             }
 
@@ -98,7 +98,7 @@ public static class SaveGuard
             }
             catch { }
 
-            Plugin.Log.LogInfo($"[Coop][存档] 已保护你的本地存档:备份 {n} 个文件 → {bdir}");
+            CoopLog.Info($"[Coop][存档] 已保护你的本地存档:备份 {n} 个文件 → {bdir}");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop][存档] 备份流程异常: {e.Message}"); }
     }
@@ -130,7 +130,7 @@ public static class SaveGuard
             }
             try { File.Delete(flag); } catch { }
 
-            Plugin.Log.LogInfo($"[Coop][存档] 已还原你的本地存档({n} 个文件);联机期间被房主数据覆盖的进度已撤销");
+            CoopLog.Info($"[Coop][存档] 已还原你的本地存档({n} 个文件);联机期间被房主数据覆盖的进度已撤销");
             CoopHud.Toast("已还原你的本地存档(联机期间改动未保存)");
         }
         catch (Exception e) { Plugin.Log.LogWarning($"[Coop][存档] 还原流程异常: {e.Message}"); }
