@@ -87,7 +87,15 @@ public static class FriendCursor
         catch { return false; }
     }
 
-    /// <summary>每帧:把队友拖的那件物品画到队友光标处(用"起点 + 位移增量",避开锚点差异)</summary>
+    /// <summary>队友是否正在拖动物品(供 ItemMoveSync 抑制采集回传)</summary>
+    public static bool IsDraggingPeer => _dragging;
+
+    /// <summary>
+    /// 每帧:让"同一件物品"跟着队友光标走。
+    /// ★ 必须改**模型**(GridShapeBuilder.minX/minY) —— 游戏的布局是按模型重算的,
+    ///   只调 SetCenteredPosition 改画面会被下一帧覆盖(实测:界面差分显示物品纹丝不动)。
+    ///   改模型 + 按格吸附,和单机拖拽的观感一致。
+    /// </summary>
     static void TickDragFollow()
     {
         if (!_dragging || _dragItem == null) return;
@@ -99,29 +107,44 @@ public static class FriendCursor
             if (!ToInvLocal(rt, _tgtX, _tgtY, out var local))
             { Diag("跟随失败: 屏幕坐标无法换算到库存局部坐标"); return; }
 
-            if (!_dragBaseSet)
+            var sh = ItemMoveSync.Placed(_dragItem);
+            if (sh == null) { Diag("跟随失败: 拿不到物品形状"); return; }
+
+            float cw = 16f, ch = 16f;
+            int gw = 0, gh = 0;
+            try
             {
-                var sh = ItemMoveSync.Placed(_dragItem);
-                if (sh == null) { Diag("跟随失败: 拿不到物品形状"); return; }
-                _dragBasePx = ItemMoveSync.ToPixel(inv, sh, sh.minX, sh.minY);
-                _dragBaseLocal = local;
-                _dragBaseSet = true;
-                return;
+                var gin = inv.TryCast<GameGridInventory>();
+                if (gin != null)
+                {
+                    gw = gin.inventoryShape != null ? gin.inventoryShape.width : 0;
+                    gh = gin.inventoryShape != null ? gin.inventoryShape.height : 0;
+                    if (gw > 0) cw = (float)gin.widthPixels / gw;
+                    if (gh > 0) ch = (float)gin.heightPixels / gh;
+                }
             }
-            var target = _dragBasePx + (local - _dragBaseLocal);
-            var ge = _dragItem.TryCast<GameItemElement>();
-            if (ge == null) { Diag("跟随失败: 物品不是 GameItemElement"); return; }
-            ge.SetCenteredPosition(target.x, target.y);
-            // SetCenteredPosition 只设目标值 → 必须再 UpdateRectTransform 才会真的画过去
-            bool moved = false;
-            try { ge.UpdateRectTransform(); moved = true; } catch { }
-            if (!moved)
+            catch { }
+
+            int nx = Mathf.RoundToInt(local.x / cw - sh.width * 0.5f);
+            int ny = Mathf.RoundToInt(local.y / ch - sh.height * 0.5f);
+            if (gw > 0) nx = Mathf.Clamp(nx, 0, Mathf.Max(0, gw - sh.width));
+            if (gh > 0) ny = Mathf.Clamp(ny, 0, Mathf.Max(0, gh - sh.height));
+
+            if (nx == sh.minX && ny == sh.minY) { _followed = true; return; }
+
+            bool ok = false;
+            try
             {
-                try { var rtv = ge.rectTransform; if (rtv != null) rtv.anchoredPosition = target; } catch { }
+                var b = sh.TryCast<GridShapeBuilder>();
+                if (b != null) { b.minX = nx; b.minY = ny; ok = true; }
             }
+            catch { }
+            if (!ok) { Diag("跟随失败: 形状不可写(拿不到 GridShapeBuilder)"); return; }
+
+            ItemMoveSync.PlaceVisual(_dragItem, ItemMoveSync.ToPixel(inv, sh, nx, ny));
             _followed = true;
         }
-        catch { }
+        catch (Exception e) { Diag("跟随异常: " + e.Message); }
     }
 
     public static void SetPeerName(string name)
