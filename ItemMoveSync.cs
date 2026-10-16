@@ -18,6 +18,8 @@ public static class ItemMoveSync
 {
     public static bool Enabled = true;
     public static bool ApplyingRemote;
+    /// <summary>拖动跟手期间为 true:ApplyRemote 不打日志(否则 50ms 一条刷屏)</summary>
+    public static bool QuietRemote;
 
     /// <summary>本地玩家正在拖动物品(游戏自己的拖拽处理器为真)</summary>
     public static bool IsLocalDragging
@@ -268,6 +270,39 @@ public static class ItemMoveSync
         catch (Exception e) { CoopLog.Warn($"[Coop] 物品移动上报失败: {e.Message}"); }
     }
 
+    /// <summary>
+    /// 拖动跟手:把物品挪到队友那边的**目标格**。
+    /// 复用 ApplyRemote 的完整路径(改模型 GridShapeBuilder + 重绘),但:
+    ///   · 保持本端朝向/翻转(不覆盖)
+    ///   · 不改数量/耐久
+    ///   · QuietRemote 抑制日志(拖动期间 50ms 一条会刷屏)
+    /// </summary>
+    public static void ApplyDragTarget(int uid, string ident, int gx, int gy)
+    {
+        if (!Enabled) return;
+        try
+        {
+            var item = FindItem(uid, ident);
+            if (item == null) return;
+            var sh = Placed(item);
+            if (sh == null) return;
+            if (sh.minX == gx && sh.minY == gy) return;      // 已经在目标格,什么都不用做
+            int o = 0; bool f = false;
+            try { o = sh.orientation; } catch { }
+            try { f = sh.flipped; } catch { }
+            QuietRemote = true;
+            ApplyRemote(new Coop.ItemMove
+            {
+                UniqueId = uid, Identifier = ident ?? "",
+                MinX = gx, MinY = gy,
+                Orientation = o, Flipped = f,
+                InvUid = 0, UnitCount = -1, Durability = -1,
+            });
+        }
+        catch { }
+        finally { QuietRemote = false; }
+    }
+
     // ================= 应用 =================
 
     public static void ApplyRemote(Coop.ItemMove m)
@@ -365,6 +400,7 @@ public static class ItemMoveSync
                 { X = now.minX, Y = now.minY, O = now.orientation, F = now.flipped,
                   InvUid = m.InvUid, Count = nowCnt, Dur = nowDur, Id = item.identifier ?? "" };
 
+            if (!QuietRemote)
             CoopLog.Info($"[Coop] 已应用队友的物品移动: {item.identifier} uid={m.UniqueId} → ({m.MinX},{m.MinY}) "
                          + $"数据={(dataOk ? "改坐标" : "失败")} 画面={(visOk ? "已重绘" : "失败")}"
                          + (m.InvUid != 0 ? $" 容器={m.InvUid}" : "")
