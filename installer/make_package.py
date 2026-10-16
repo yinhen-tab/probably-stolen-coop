@@ -13,6 +13,7 @@
 
 产物: <输出目录>/ProbablyStolen联机一键安装.zip
 """
+import datetime
 import os
 import shutil
 import sys
@@ -144,6 +145,15 @@ def main():
     except Exception:
         pass
 
+    # 构建戳:install.bat 用它拦住"旧包覆盖新版本"
+    _stamp = datetime.datetime.now().strftime('%Y%m%d%H%M')
+    try:
+        with open(os.path.join(payload, 'build.txt'), 'w') as _f:
+            _f.write(_stamp)
+        print('      构建戳: %s' % _stamp)
+    except Exception as _e:
+        print('      (build.txt 写入失败: %s)' % _e)
+
     # Unity 基础库(必需! 缺它 BepInEx 首次启动会联网下载, 国内网络极易失败导致模组加载不了)
     print('[3.5/5] 复制 Unity 基础库...')
     ul_src = os.path.join(GAME, 'BepInEx', 'unity-libs')
@@ -189,7 +199,6 @@ def main():
 
     # 版本标记:装完由 install.bat 打印,方便确认"朋友装的是不是新包"
     try:
-        import datetime
         with open(os.path.join(stage, 'VERSION.txt'), 'w', encoding='gbk') as f:
             f.write('================================================\n')
             f.write('  版本: %s\n' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M'))
