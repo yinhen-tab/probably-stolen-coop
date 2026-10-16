@@ -21,6 +21,7 @@ public static class ItemMoveSync
     /// <summary>拖动跟手期间为 true:ApplyRemote 不打日志(否则 50ms 一条刷屏)</summary>
     public static bool QuietRemote;
     private static int _dragApplyCount;
+    private static int _blockedCount;
 
     /// <summary>本地玩家正在拖动物品(游戏自己的拖拽处理器为真)</summary>
     public static bool IsLocalDragging
@@ -325,28 +326,67 @@ public static class ItemMoveSync
     public static void ApplyDragTarget(int uid, string ident, int gx, int gy)
     {
         if (!Enabled) return;
-        if (_dragApplyCount > 1000000) _dragApplyCount = 0;
         try
         {
             var item = FindItem(uid, ident);
             if (item == null) return;
+            var inv = item.parentInventory;
+            if (inv == null) return;
             var sh = Placed(item);
             if (sh == null) return;
             if (sh.minX == gx && sh.minY == gy) return;      // 已经在目标格,什么都不用做
-            int o = 0; bool f = false;
-            try { o = sh.orientation; } catch { }
-            try { f = sh.flipped; } catch { }
+
+            // minX/minY 在 GridShape 上是只读的,只有 GridShapeBuilder 能写
+            var gsb = sh.TryCast<GridShapeBuilder>();
+            int ox = sh.minX, oy = sh.minY;
+            int ori = 0; bool flp = false;
+            try { ori = sh.orientation; } catch { }
+            try { flp = sh.flipped; } catch { }
+
+            SlotMarker slot = null;
+            bool canPlace = true;    // 拿不到可写形状时,退化为"直接移动"(旧行为)
+
+            if (gsb != null)
+            {
+                // ---- 1) 形状临时指向目标格,问游戏"这里能放下吗"(原游戏就是这么判断的) ----
+                try
+                {
+                    gsb.minX = gx; gsb.minY = gy;
+                    try { slot = inv.TryInventorySlot(item, sh, item.state); } catch { }
+                    if (slot == null)
+                        slot = new SlotMarker { item = item, inventory = inv, itemGridShape = sh, index = 0 };
+                    try { canPlace = slot.IsValid(); } catch { canPlace = false; }
+
+                    // ---- 2) 高亮:能放 = 绿; 撞了别的物品 = 红(和原游戏一致) ----
+                    inv.ClearHighlight();
+                    inv.HighlightSlot(slot, canPlace ? RenderHandler.BackgroundColor.Green
+                                                     : RenderHandler.BackgroundColor.Red, false);
+                }
+                catch (Exception e) { CoopLog.Detail($"[Coop] 高亮占用格失败: {e.Message}"); }
+                finally
+                {
+                    try { gsb.minX = ox; gsb.minY = oy; } catch { }   // 立刻还原本端形状
+                }
+            }
+
+            // ---- 3) 只有能放才真的移动物品(撞位就不动,避免堆叠) ----
+            if (!canPlace)
+            {
+                _blockedCount++;
+                if (_blockedCount <= 3 || _blockedCount % 20 == 0)
+                    CoopLog.Info($"[Coop][拖应用] 目标格=({gx},{gy}) 被占用 → 红色,不移动物品 (第{_blockedCount}次)");
+                return;
+            }
+
+            _dragApplyCount++;
             QuietRemote = true;
             ApplyRemote(new Coop.ItemMove
             {
                 UniqueId = uid, Identifier = ident ?? "",
                 MinX = gx, MinY = gy,
-                Orientation = o, Flipped = f,
+                Orientation = ori, Flipped = flp,
                 InvUid = 0, UnitCount = -1, Durability = -1,
             });
-            // 限流日志:证明"目标格 → 物品实际落到哪"(拖动期间 50ms 一次,不能全打)
-            HighlightOccupied(item);      // ★ 占用格涂绿(和原游戏拖动时一致)
-            _dragApplyCount++;
             if (_dragApplyCount <= 3 || _dragApplyCount % 10 == 0)
                 CoopLog.Info($"[Coop][拖应用] #{_dragApplyCount} 目标格=({gx},{gy}) 物品={item.identifier} "
                              + $"实际=({sh.minX},{sh.minY})");
