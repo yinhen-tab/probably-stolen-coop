@@ -20,6 +20,7 @@ public static class ItemMoveSync
     public static bool ApplyingRemote;
     /// <summary>拖动跟手期间为 true:ApplyRemote 不打日志(否则 50ms 一条刷屏)</summary>
     public static bool QuietRemote;
+    private static int _dragApplyCount;
 
     /// <summary>本地玩家正在拖动物品(游戏自己的拖拽处理器为真)</summary>
     public static bool IsLocalDragging
@@ -280,6 +281,7 @@ public static class ItemMoveSync
     public static void ApplyDragTarget(int uid, string ident, int gx, int gy)
     {
         if (!Enabled) return;
+        if (_dragApplyCount > 1000000) _dragApplyCount = 0;
         try
         {
             var item = FindItem(uid, ident);
@@ -298,6 +300,11 @@ public static class ItemMoveSync
                 Orientation = o, Flipped = f,
                 InvUid = 0, UnitCount = -1, Durability = -1,
             });
+            // 限流日志:证明"目标格 → 物品实际落到哪"(拖动期间 50ms 一次,不能全打)
+            _dragApplyCount++;
+            if (_dragApplyCount <= 3 || _dragApplyCount % 10 == 0)
+                CoopLog.Info($"[Coop][拖应用] #{_dragApplyCount} 目标格=({gx},{gy}) 物品={item.identifier} "
+                             + $"实际=({sh.minX},{sh.minY})");
         }
         catch { }
         finally { QuietRemote = false; }
