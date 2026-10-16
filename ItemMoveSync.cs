@@ -76,6 +76,16 @@ public static class ItemMoveSync
             var ge = it.TryCast<GameItemElement>();
             if (ge == null) return false;
             ge.SetCenteredPosition(pixel.x, pixel.y);
+            // ★ 关键:SetCenteredPosition 只是设目标值,必须再 UpdateRectTransform() 才真正写进画面
+            //   (之前只调 SetCenteredPosition → 日志说"已重绘"但屏幕上根本没动)
+            bool updated = false;
+            try { ge.UpdateRectTransform(); updated = true; }
+            catch (Exception e) { CoopLog.Detail($"[Coop] UpdateRectTransform 失败: {e.Message}"); }
+            if (!updated)
+            {
+                try { var rt = ge.rectTransform; if (rt != null) rt.anchoredPosition = pixel; }
+                catch { }
+            }
             return true;
         }
         catch (Exception e) { CoopLog.Detail($"[Coop] SetCenteredPosition 失败: {e.Message}"); return false; }
