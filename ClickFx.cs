@@ -85,7 +85,7 @@ public static class ClickFx
         canvas.sortingOrder = 31000;
         _ring = BuildRingSprite();
         _created = true;
-        Plugin.Log.LogInfo("[Coop] 点击特效已创建");
+        CoopLog.Info("[Coop] 点击特效已创建");
     }
 
     private static Sprite BuildRingSprite()
