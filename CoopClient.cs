@@ -1011,9 +1011,14 @@ public static class CoopClient
     {
         if (string.IsNullOrEmpty(title)) return null;
         string want = title.Trim();
+
+        // 1) 先查窗口登记表(Show/Hide 时登记的实例,最可靠)
+        var reg = WindowSync.FindRegistered(want);
+        if (reg != null) return reg;
+
+        // 2) 退回全量扫描(含未激活)
         try
         {
-            // 显式开启"含未激活":窗口未打开时是隐藏状态
             var all = Resources.FindObjectsOfTypeAll(Il2CppInterop.Runtime.Il2CppType.Of<TreeNodeRender>());
             if (all == null) return null;
             for (int i = 0; i < all.Length; i++)
@@ -1028,12 +1033,17 @@ public static class CoopClient
                     if (win == null) continue;
                     string t = "";
                     try { t = (win.titleString ?? "").Trim(); } catch { }
-                    if (t == want) return win;
+                    if (t == want)
+                    {
+                        WindowSync.Register(win);
+                        return win;
+                    }
                 }
                 catch { }
             }
         }
         catch (Exception e) { CoopLog.Detail($"[Coop] 按标题找窗口异常: {e.Message}"); }
+        CoopLog.Detail($"[Coop] 按标题没找到窗口: {want}");
         return null;
     }
 
@@ -1041,6 +1051,9 @@ public static class CoopClient
     static PixelWindow FindWindowByPath(string path)
     {
         if (_winCache.TryGetValue(path, out var cached) && cached != null) return cached;
+        // 登记表优先(Show/Hide 时登记过,比全量扫描可靠)
+        var regPath = WindowSync.FindRegisteredByPath(path);
+        if (regPath != null) { _winCache[path] = regPath; return regPath; }
         int scanned = 0, added = 0;
         try
         {
