@@ -194,6 +194,21 @@ def main():
         with open(os.path.join(cfg_dir, 'BepInEx.cfg'), 'w', encoding='utf-8') as f:
             f.write('[Logging]\n\nUnityLogListening = false\n\n[Logging.Console]\n\n## Enables showing a console for log output.\n# Setting type: Boolean\n# Default value: true\nEnabled = false\n')
 
+    # ---- .bat 必须全 CRLF:混入裸 LF 会让 cmd 解析括号块时报"不是内部或外部命令" ----
+    for f in ('install.bat', 'uninstall.bat'):
+        raw = open(os.path.join(HERE, f), 'rb').read()
+        crlf = raw.count(b'\r\n')
+        lf = raw.count(b'\n')
+        if crlf != lf:
+            print('   [错误] %s 换行符不一致: CRLF=%d 裸LF=%d' % (f, crlf, lf - crlf))
+            print('          请统一为 CRLF(见 installer/fix_bat_encoding.py),否则 cmd 会报语法错误。')
+            sys.exit(1)
+        try:
+            raw.decode('gbk')
+        except UnicodeDecodeError:
+            print('   [错误] %s 不是 GBK 编码(中文会乱码)' % f)
+            sys.exit(1)
+
     for f in ('install.bat', 'uninstall.bat'):
         shutil.copy2(os.path.join(HERE, f), stage)
 
