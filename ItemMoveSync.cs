@@ -22,6 +22,11 @@ public static class ItemMoveSync
     public static bool QuietRemote;
     private static int _dragApplyCount;
     private static int _blockedCount;
+    private static bool _fakeOn;          // 假象层是否已显现(拖动中)
+    private static bool _hasValid;        // 是否有过有效落点
+    private static int _lastValidGX = -1, _lastValidGY = -1;
+    private static int _endUid;
+    private static string _endIdent = "";
 
     /// <summary>本地玩家正在拖动物品(游戏自己的拖拽处理器为真)</summary>
     public static bool IsLocalDragging
@@ -323,6 +328,27 @@ public static class ItemMoveSync
     ///   · 不改数量/耐久
     ///   · QuietRemote 抑制日志(拖动期间 50ms 一条会刷屏)
     /// </summary>
+    /// <summary>把物品的全部假象层节点移动到某个世界坐标(拖动时跟着走的就是这些,真实物品不动)</summary>
+    static void SetFakeWorld(GameItem item, Vector3 w)
+    {
+        try
+        {
+            var ge = item != null ? item.TryCast<GameItemElement>() : null;
+            if (ge == null) return;
+            try { if (ge.fakeInner != null) ge.fakeInner.transform.position = w; } catch { }
+            try { if (ge.fakeMiddle != null) ge.fakeMiddle.transform.position = w; } catch { }
+            try { if (ge.fakeRotator != null) ge.fakeRotator.transform.position = w; } catch { }
+            try { if (ge.fakeBackground != null) ge.fakeBackground.transform.position = w; } catch { }
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 拖动跟手(和原游戏一致):
+    ///   · 判断目标格能不能放 → 绿/红高亮
+    ///   · **移动的是假象层(fakeInner 那组),不是物品本身** → 视觉一路跟随、且不会和别的物品堆叠
+    ///   · 真实物品留原位,松手时 EndDragTarget 才落位
+    /// </summary>
     public static void ApplyDragTarget(int uid, string ident, int gx, int gy)
     {
         if (!Enabled) return;
@@ -334,21 +360,17 @@ public static class ItemMoveSync
             if (inv == null) return;
             var sh = Placed(item);
             if (sh == null) return;
-            if (sh.minX == gx && sh.minY == gy) return;      // 已经在目标格,什么都不用做
 
-            // minX/minY 在 GridShape 上是只读的,只有 GridShapeBuilder 能写
+            _endUid = uid; _endIdent = ident ?? "";
+
             var gsb = sh.TryCast<GridShapeBuilder>();
             int ox = sh.minX, oy = sh.minY;
-            int ori = 0; bool flp = false;
-            try { ori = sh.orientation; } catch { }
-            try { flp = sh.flipped; } catch { }
 
+            // ---- 1) 形状临时指向目标格 → 问游戏能不能放 ----
             SlotMarker slot = null;
-            bool canPlace = true;    // 拿不到可写形状时,退化为"直接移动"(旧行为)
-
+            bool canPlace = true;
             if (gsb != null)
             {
-                // ---- 1) 形状临时指向目标格,问游戏"这里能放下吗"(原游戏就是这么判断的) ----
                 try
                 {
                     gsb.minX = gx; gsb.minY = gy;
@@ -356,43 +378,76 @@ public static class ItemMoveSync
                     if (slot == null)
                         slot = new SlotMarker { item = item, inventory = inv, itemGridShape = sh, index = 0 };
                     try { canPlace = slot.IsValid(); } catch { canPlace = false; }
-
-                    // ---- 2) 高亮:能放 = 绿; 撞了别的物品 = 红(和原游戏一致) ----
-                    inv.ClearHighlight();
-                    inv.HighlightSlot(slot, canPlace ? RenderHandler.BackgroundColor.Green
-                                                     : RenderHandler.BackgroundColor.Red, false);
                 }
-                catch (Exception e) { CoopLog.Detail($"[Coop] 高亮占用格失败: {e.Message}"); }
-                finally
-                {
-                    try { gsb.minX = ox; gsb.minY = oy; } catch { }   // 立刻还原本端形状
-                }
+                catch { }
+                finally { try { gsb.minX = ox; gsb.minY = oy; } catch { } }
             }
 
-            // ---- 3) 只有能放才真的移动物品(撞位就不动,避免堆叠) ----
-            if (!canPlace)
+            // ---- 2) 高亮(绿/红) + 顺手拿到格子节点(用来定位假象层) ----
+            Il2CppSystem.Collections.Generic.List<TreeNodeRender> nodes = null;
+            try
             {
-                _blockedCount++;
-                if (_blockedCount <= 3 || _blockedCount % 20 == 0)
-                    CoopLog.Info($"[Coop][拖应用] 目标格=({gx},{gy}) 被占用 → 红色,不移动物品 (第{_blockedCount}次)");
-                return;
+                inv.ClearHighlight();
+                nodes = inv.HighlightSlot(slot, canPlace ? RenderHandler.BackgroundColor.Green
+                                                         : RenderHandler.BackgroundColor.Red, false);
             }
+            catch (Exception e) { CoopLog.Detail($"[Coop] 高亮失败: {e.Message}"); }
 
+            // ---- 3) ★ 假象层跟着走(真实物品不动 → 永远不堆叠、跟随不断) ----
+            var ge = item.TryCast<GameItemElement>();
+            if (!_fakeOn && ge != null)
+            {
+                try { ge.UpdateFakeReal(Mathf.Max(1, item.unitCount)); } catch { }
+                _fakeOn = true;
+                CoopLog.Info($"[Coop][拖跟随] 假象层已显现: {item.identifier}");
+            }
+            Vector3? tp = null;
+            try { if (nodes != null && nodes.Count > 0) tp = nodes[0].transform.position; } catch { }
+            if (tp.HasValue) SetFakeWorld(item, tp.Value);
+
+            // ---- 4) 记录有效落点(松手时用) ----
+            if (canPlace) { _lastValidGX = gx; _lastValidGY = gy; _hasValid = true; }
             _dragApplyCount++;
-            QuietRemote = true;
-            ApplyRemote(new Coop.ItemMove
-            {
-                UniqueId = uid, Identifier = ident ?? "",
-                MinX = gx, MinY = gy,
-                Orientation = ori, Flipped = flp,
-                InvUid = 0, UnitCount = -1, Durability = -1,
-            });
-            if (_dragApplyCount <= 3 || _dragApplyCount % 10 == 0)
-                CoopLog.Info($"[Coop][拖应用] #{_dragApplyCount} 目标格=({gx},{gy}) 物品={item.identifier} "
-                             + $"实际=({sh.minX},{sh.minY})");
+            if (_dragApplyCount <= 2 || _dragApplyCount % 20 == 0)
+                CoopLog.Info($"[Coop][拖跟随] 目标格=({gx},{gy}) 能放={canPlace} "
+                             + $"假象层={(tp.HasValue ? tp.Value.ToString("F0") : "无格子节点")}");
         }
         catch { }
-        finally { QuietRemote = false; }
+    }
+
+    /// <summary>拖动结束:收起假象层,把物品落到最后一个**有效**落点(无效就留在原位)</summary>
+    public static void EndDragTarget()
+    {
+        try
+        {
+            if (_fakeOn)
+            {
+                var it = FindItem(_endUid, _endIdent);
+                var ige = it != null ? it.TryCast<GameItemElement>() : null;
+                if (ige != null) { try { ige.UpdateFakeReal(0); } catch { } }
+                _fakeOn = false;
+            }
+            if (_hasValid)
+            {
+                CoopLog.Info($"[Coop][拖跟随] 松手落位 → ({_lastValidGX},{_lastValidGY})");
+                QuietRemote = true;
+                ApplyRemote(new Coop.ItemMove
+                {
+                    UniqueId = _endUid, Identifier = _endIdent ?? "",
+                    MinX = _lastValidGX, MinY = _lastValidGY,
+                    Orientation = 0, Flipped = false,
+                    InvUid = 0, UnitCount = -1, Durability = -1,
+                });
+            }
+            else CoopLog.Info("[Coop][拖跟随] 松手:全程无有效落点,物品留在原位");
+        }
+        catch { }
+        finally
+        {
+            _hasValid = false; _lastValidGX = -1; _lastValidGY = -1;
+            QuietRemote = false;
+        }
+        ClearDragHighlight();
     }
 
     // ================= 应用 =================
