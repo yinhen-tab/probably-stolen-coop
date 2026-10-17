@@ -415,33 +415,76 @@ public static class ItemMoveSync
         catch { }
     }
 
-    /// <summary>拖动结束:收起假象层,把物品落到最后一个**有效**落点(无效就留在原位)</summary>
+    /// <summary>
+    /// 拖动结束:收起假象层,然后把落点交给**游戏自己**执行。
+    /// 用 `SlotMarker.TryAcceptOnce(-1)` 而不是自己改坐标 ——
+    /// 这样堆叠、倒液体(LiquidContainerHelper.TransferLiquid)、装备槽、跨容器
+    /// 全部由原版逻辑处理,行为与单机完全一致。
+    /// </summary>
     public static void EndDragTarget()
     {
         try
         {
+            // 1) 收起假象层
             if (_fakeOn)
             {
-                var it = FindItem(_endUid, _endIdent);
-                var ige = it != null ? it.TryCast<GameItemElement>() : null;
-                if (ige != null) { try { ige.UpdateFakeReal(0); } catch { } }
+                var it0 = FindItem(_endUid, _endIdent);
+                var ge0 = it0 != null ? it0.TryCast<GameItemElement>() : null;
+                if (ge0 != null) { try { ge0.UpdateFakeReal(0); } catch { } }
                 _fakeOn = false;
             }
-            if (_hasValid)
+            if (!_hasValid)
             {
-                CoopLog.Info($"[Coop][拖跟随] 松手落位 → ({_lastValidGX},{_lastValidGY})");
-                QuietRemote = true;
-                ApplyRemote(new Coop.ItemMove
-                {
-                    UniqueId = _endUid, Identifier = _endIdent ?? "",
-                    MinX = _lastValidGX, MinY = _lastValidGY,
-                    Orientation = 0, Flipped = false,
-                    InvUid = 0, UnitCount = -1, Durability = -1,
-                });
+                CoopLog.Info("[Coop][拖跟随] 松手:全程无有效落点,物品留在原位");
+                return;
             }
-            else CoopLog.Info("[Coop][拖跟随] 松手:全程无有效落点,物品留在原位");
+
+            var item = FindItem(_endUid, _endIdent);
+            if (item == null) return;
+            var inv = item.parentInventory;
+            if (inv == null) return;
+            var sh = Placed(item);
+            if (sh == null) return;
+            var gsb = sh.TryCast<GridShapeBuilder>();
+
+            // 2) 用"最后一个有效落点"重新算 slot
+            int ox = sh.minX, oy = sh.minY;
+            SlotMarker slot = null;
+            try
+            {
+                if (gsb != null) { gsb.minX = _lastValidGX; gsb.minY = _lastValidGY; }
+                try { slot = inv.TryInventorySlot(item, sh, item.state); } catch { }
+            }
+            finally
+            {
+                try { if (gsb != null) { gsb.minX = ox; gsb.minY = oy; } } catch { }
+            }
+            if (slot == null || !slot.IsValid())
+            {
+                CoopLog.Info($"[Coop][拖跟随] 松手:落点 ({_lastValidGX},{_lastValidGY}) 已失效,物品留在原位");
+                return;
+            }
+
+            // 3) ★ 交给游戏执行(放置 / 堆叠 / 倒液体 / 换容器 全在内部)
+            string extra = "";
+            try
+            {
+                if (slot.targetItem != null) extra += $" 目标物品={slot.targetItem.identifier}";
+                if (slot.numTransfer > 0) extra += $" 转移量={slot.numTransfer}";
+                if (slot.IsEquipmentSlot()) extra += " [装备槽]";
+            }
+            catch { }
+
+            ApplyingRemote = true;
+            int accepted = -1;
+            try { accepted = slot.TryAcceptOnce(-1); }
+            catch (Exception e) { CoopLog.Warn($"[Coop][拖跟随] TryAcceptOnce 异常: {e.Message}"); }
+            finally { ApplyingRemote = false; _rebuildBaseline = true; }
+
+            CoopLog.Info($"[Coop][拖跟随] 松手 → 游戏执行放置: 格({_lastValidGX},{_lastValidGY}) "
+                         + $"接受={accepted}{extra}");
         }
-        catch { }
+        catch (Exception e) { CoopLog.Warn($"[Coop][拖跟随] 结束处理异常: {e.Message}"); }
         finally
         {
             _hasValid = false; _lastValidGX = -1; _lastValidGY = -1;
