@@ -23,6 +23,8 @@ public static class ItemMoveSync
     private static int _dragApplyCount;
     private static int _blockedCount;
     private static bool _fakeOn;          // 假象层是否已显现(拖动中)
+    private static bool _fakeWorldSet;    // 假象层目标世界坐标是否已设定
+    private static Vector3 _fakeWorld;    // 假象层目标世界坐标(Tick 每帧重申)
     private static bool _hasValid;        // 是否有过有效落点
     private static int _lastValidGX = -1, _lastValidGY = -1;
     private static int _endUid;
@@ -343,6 +345,14 @@ public static class ItemMoveSync
         catch { }
     }
 
+    /// <summary>拖动期间每帧重申假象层位置(游戏布局会把它拉回去,不能只写一次)</summary>
+    public static void TickDragFake()
+    {
+        if (!_fakeOn || !_fakeWorldSet) return;
+        var it = FindItem(_endUid, _endIdent);
+        if (it != null) SetFakeWorld(it, _fakeWorld);
+    }
+
     /// <summary>
     /// 拖动跟手(和原游戏一致):
     ///   · 判断目标格能不能放 → 绿/红高亮
@@ -403,7 +413,11 @@ public static class ItemMoveSync
             }
             Vector3? tp = null;
             try { if (nodes != null && nodes.Count > 0) tp = nodes[0].transform.position; } catch { }
-            if (tp.HasValue) SetFakeWorld(item, tp.Value);
+            if (tp.HasValue)
+            {
+                SetFakeWorld(item, tp.Value);
+                _fakeWorld = tp.Value; _fakeWorldSet = true;   // Tick 每帧重申,防被游戏布局拉回
+            }
 
             // ---- 4) 记录有效落点(松手时用) ----
             if (canPlace) { _lastValidGX = gx; _lastValidGY = gy; _hasValid = true; }
@@ -488,9 +502,10 @@ public static class ItemMoveSync
         finally
         {
             _hasValid = false; _lastValidGX = -1; _lastValidGY = -1;
+            _fakeWorldSet = false;
             QuietRemote = false;
+            ClearDragHighlight();     // ★ 必须在 finally:提前 return 的路径也要清掉高亮
         }
-        ClearDragHighlight();
     }
 
     // ================= 应用 =================
