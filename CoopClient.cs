@@ -592,6 +592,7 @@ public static class CoopClient
             // ---- 物品位置(只同步被移动的那一件) ----
             ItemMoveSync.TickCapture();
             DragSync.TickSend();      // 拖动中:持续上报被拖物品的位移
+            ItemMoveSync.TickDragFake();   // 接收端:每帧重申假象层位置(防被游戏布局拉回)
 
             // ---- 容器窗口位置(队友拖动容器窗口) ----
             ObjectUseSync.TickWindow();
