@@ -353,7 +353,7 @@ public static class CoopClient
                 }
                 else if (!dragging)
                 {
-                    RunOnMain(() => ItemMoveSync.ClearDragHighlight());   // 拖动结束:清掉绿色占用格
+                    RunOnMain(() => ItemMoveSync.EndDragTarget());   // 拖动结束:收假象层 + 落到最后有效落点
                 }
                 break;
             }
